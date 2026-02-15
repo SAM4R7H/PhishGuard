@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "AI Phishing Guard",
+  "version": "0.1.0",
+  "description": "AI-powered real-time scam and phishing detection with explainable results. Works locally for complete privacy.",
+
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://mail.google.com/*"
+  ],
+
+  "background": {
+    "service_worker": "scripts/background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://mail.google.com/*"
+      ],
+      "js": [
+        "utils/constants.js",
+        "utils/helpers.js",
+        "scripts/scanner.js",
+        "scripts/ai-engine.js",
+        "scripts/content.js"
+      ],
+      "css": [],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  },
+
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

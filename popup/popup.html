@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishGuard</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+
+    <header class="header">
+      <div class="logo">
+        <span class="logo-icon">🛡️</span>
+        <div>
+          <h1>PhishGuard</h1>
+          <p class="subtitle">AI Scam Detection</p>
+        </div>
+      </div>
+      <div class="status" id="statusIndicator">
+        <span class="status-dot active"></span>
+        <span class="status-text">Active</span>
+      </div>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-number" id="totalScans">0</div>
+        <div class="stat-label">Total Scans</div>
+      </div>
+      <div class="stat-card danger">
+        <div class="stat-number" id="scamsDetected">0</div>
+        <div class="stat-label">Threats Found</div>
+      </div>
+      <div class="stat-card safe">
+        <div class="stat-number" id="safeEmails">0</div>
+        <div class="stat-label">Safe Emails</div>
+      </div>
+      <div class="stat-card info">
+        <div class="stat-number" id="accuracy">—</div>
+        <div class="stat-label">Detection Rate</div>
+      </div>
+    </section>
+
+    <section class="last-scan" id="lastScanSection" style="display:none;">
+      <h3>🔍 Latest Scan</h3>
+      <div class="scan-result" id="lastScanResult">
+        </div>
+    </section>
+
+    <section class="categories" id="categoriesSection" style="display:none;">
+      <h3>📊 Threat Categories</h3>
+      <div id="categoryList">
+        </div>
+    </section>
+
+    <section class="actions">
+      <button id="manualScanBtn" class="btn btn-primary">
+        🔍 Scan Current Email
+      </button>
+      <button id="clearHistoryBtn" class="btn btn-secondary">
+        🗑️ Clear History
+      </button>
+    </section>
+
+    <footer class="footer">
+      <p>v0.1.0 • 100% Local Processing • No Data Leaves Your Device</p>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

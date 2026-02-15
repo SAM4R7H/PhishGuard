@@ -1,0 +1,257 @@
+/**
+ * ============================================
+ * POPUP.CSS — Extension Popup Styles
+ * ============================================
+ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 360px;
+  min-height: 480px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  overflow-x: hidden;
+}
+
+.container {
+  padding: 16px;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-icon {
+  font-size: 28px;
+}
+
+.logo h1 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #1e293b;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #475569;
+}
+
+.status-dot.active {
+  background: #22c55e;
+  box-shadow: 0 0 6px #22c55e;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-text {
+  color: #94a3b8;
+}
+
+/* ── Stats Grid ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.stat-card {
+  background: #1e293b;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  border: 1px solid #334155;
+  transition: transform 0.2s, border-color 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-1px);
+  border-color: #475569;
+}
+
+.stat-card.danger { border-left: 3px solid #ef4444; }
+.stat-card.safe { border-left: 3px solid #22c55e; }
+.stat-card.info { border-left: 3px solid #3b82f6; }
+
+.stat-number {
+  font-size: 24px;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.2;
+}
+
+.stat-card.danger .stat-number { color: #ef4444; }
+.stat-card.safe .stat-number { color: #22c55e; }
+.stat-card.info .stat-number { color: #3b82f6; }
+
+.stat-label {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Sections ── */
+.last-scan, .categories {
+  background: #1e293b;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 14px;
+  border: 1px solid #334155;
+}
+
+.last-scan h3, .categories h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 10px;
+}
+
+.scan-result {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.scan-result .result-score {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.scan-result .result-category {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.scan-result .result-flags {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.scan-result .result-flags div {
+  padding: 2px 0;
+}
+
+/* ── Category List ── */
+.category-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 13px;
+  border-bottom: 1px solid #334155;
+}
+
+.category-item:last-child {
+  border-bottom: none;
+}
+
+.category-count {
+  background: #334155;
+  color: #e2e8f0;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Buttons ── */
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.btn {
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.btn-secondary {
+  background: #1e293b;
+  color: #94a3b8;
+  border: 1px solid #334155;
+}
+
+.btn-secondary:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+/* ── Footer ── */
+.footer {
+  text-align: center;
+  padding-top: 10px;
+  border-top: 1px solid #1e293b;
+}
+
+.footer p {
+  font-size: 10px;
+  color: #475569;
+  line-height: 1.4;
+}
