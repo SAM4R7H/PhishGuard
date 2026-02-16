@@ -97,7 +97,7 @@ const PhishAIEngine = {
       SCAM_CONSTANTS.URGENCY_KEYWORDS
     );
     if (urgencyMatches.length > 0) {
-      const points = Math.min(urgencyMatches.length * 12, 40);
+      const points = Math.min(urgencyMatches.length * 12, 30);
       result.score += points;
       result.flags.push(
         `Urgency tactics detected: "${urgencyMatches.slice(0, 3).join('", "')}"`
@@ -110,7 +110,7 @@ const PhishAIEngine = {
       SCAM_CONSTANTS.THREAT_KEYWORDS
     );
     if (threatMatches.length > 0) {
-      const points = Math.min(threatMatches.length * 15, 40);
+      const points = Math.min(threatMatches.length * 15, 30);
       result.score += points;
       result.flags.push(
         `Threatening language: "${threatMatches.slice(0, 3).join('", "')}"`
@@ -123,7 +123,7 @@ const PhishAIEngine = {
       SCAM_CONSTANTS.FINANCIAL_KEYWORDS
     );
     if (financialMatches.length > 0) {
-      const points = Math.min(financialMatches.length * 10, 35);
+      const points = Math.min(financialMatches.length * 10, 27);
       result.score += points;
       result.flags.push(
         `Financial bait detected: "${financialMatches.slice(0, 3).join('", "')}"`
@@ -159,7 +159,7 @@ const PhishAIEngine = {
       SCAM_CONSTANTS.HINGLISH_KEYWORDS
     );
     if (hinglishMatches.length > 0) {
-      result.score += Math.min(hinglishMatches.length * 10, 30);
+      result.score += Math.min(hinglishMatches.length * 10, 20);
       result.flags.push(
         `Regional scam pattern detected: "${hinglishMatches.slice(0, 2).join('", "')}"`
       );
@@ -171,7 +171,7 @@ const PhishAIEngine = {
       SCAM_CONSTANTS.GRAMMAR_INDICATORS
     );
     if (grammarMatches.length > 0) {
-      result.score += Math.min(grammarMatches.length * 8, 20);
+      result.score += Math.min(grammarMatches.length * 8, 10);
       result.flags.push("Contains common grammar errors found in scam emails");
     }
 
@@ -196,33 +196,46 @@ const PhishAIEngine = {
     return result;
   },
 
-  // ══════════════════════════════════════════
-  //  CATEGORY DETECTION
-  // ══════════════════════════════════════════
+// ==============================================
+// CATEGORY DETECTION (Improved)
+// ==============================================
 
-  _detectCategory(text) {
+_detectCategory(text, textResult = { score: 0 }) {
     if (!text) return null;
     const lowerText = text.toLowerCase();
 
     let bestCategory = null;
-    let bestMatchCount = 0;
+    let bestMatchScore = 0;
 
     for (const [key, cat] of Object.entries(SCAM_CONSTANTS.SCAM_CATEGORIES)) {
-      const matchCount = cat.keywords.filter(kw => lowerText.includes(kw)).length;
-      if (matchCount > bestMatchCount) {
-        bestMatchCount = matchCount;
-        bestCategory = cat;
-      }
+        // Weighted keyword matching
+        const matchScore = cat.keywords.reduce((sum, kw) => {
+            return lowerText.includes(kw) ? sum + (cat.weights?.[kw] || 1) : sum;
+        }, 0);
+
+        // Tie-breaking: prefer higher severity if scores equal
+        if (matchScore > bestMatchScore ||
+           (matchScore === bestMatchScore && cat.severity > (bestCategory?.severity || 0))) {
+            bestMatchScore = matchScore;
+            bestCategory = { 
+                ...cat, 
+                matchedKeywords: cat.keywords.filter(kw => lowerText.includes(kw)) 
+            };
+        }
     }
 
-    return bestMatchCount >= 2 ? bestCategory : null;
-  },
+    // Threshold logic: allow 1 keyword if overall text score is already high
+    if (bestMatchScore >= 2 || (bestMatchScore === 1 && textResult.score >= 50)) {
+        return bestCategory;
+    }
 
-  // ══════════════════════════════════════════
-  //  EXPLANATION GENERATOR
-  // ══════════════════════════════════════════
+    return null;
+},
+  // ==============================================
+// EXPLANATION GENERATOR (Improved)
+// ==============================================
 
-  _generateExplanation(textResult, urlResult, senderResult, category) {
+_generateExplanation(textResult, urlResult, senderResult, category) {
     const allFlags = [
       ...textResult.flags,
       ...urlResult.flags,
@@ -241,13 +254,32 @@ const PhishAIEngine = {
       (textResult.score * 0.4) + (urlResult.score * 0.4) + (senderResult.score * 0.2)
     );
 
+    // Risk level logic: require non-text signals for HIGH RISK
+    const hasStrongNonTextSignals = urlResult.score > 20 || senderResult.score > 15;
     let summary;
-    if (totalScore >= 70) {
+    if (totalScore >= 70 && hasStrongNonTextSignals) {
       summary = `⚠️ HIGH RISK: ${category ? category.label : "Potential Scam"} Detected`;
+    } else if (totalScore >= 70) {
+      summary = `⚡ CAUTION: Suspicious text patterns detected, but no strong sender/URL evidence`;
     } else if (totalScore >= 30) {
       summary = `⚡ CAUTION: Some suspicious elements found`;
     } else {
       summary = `✅ LOW RISK: Minor concerns detected`;
+    }
+
+    // Flag-based educational tips
+    const flagTips = [];
+    if (textResult.flags.some(f => f.includes("Urgency"))) {
+      flagTips.push("Scammers often pressure you with urgency. Pause and verify before acting.");
+    }
+    if (textResult.flags.some(f => f.includes("Threat"))) {
+      flagTips.push("Threatening language is a scare tactic. Legitimate organizations don’t threaten arrest or fines via email.");
+    }
+    if (urlResult.flags.some(f => f.includes("Suspicious"))) {
+      flagTips.push("Hover over links to check the real domain before clicking.");
+    }
+    if (senderResult.flags.some(f => f.includes("Mismatch"))) {
+      flagTips.push("Sender address doesn’t match display name — a common impersonation trick.");
     }
 
     const educationalTips = {
@@ -268,13 +300,17 @@ const PhishAIEngine = {
 
     return {
       summary,
-      details: allFlags,
-      educationalTip: categoryKey
-        ? educationalTips[categoryKey]
-        : "When in doubt, contact the organization directly using their official website or phone number — never use contact info from the suspicious message itself."
+      details: [
+        ...allFlags,
+        ...(category?.matchedKeywords ? [`Category keywords: ${category.matchedKeywords.join(", ")}`] : [])
+      ],
+      educationalTip: flagTips.length > 0
+        ? flagTips.join(" ")
+        : categoryKey
+          ? educationalTips[categoryKey]
+          : "When in doubt, contact the organization directly using their official website or phone number — never use contact info from the suspicious message itself."
     };
-  },
-
+},
   // ══════════════════════════════════════════
   //  PRIVATE HELPERS
   // ══════════════════════════════════════════
