@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "AI Phishing Guard",
+  "name": "PhishGuard: AI-Powered Protection",
+  "short_name": "PhishGuard",
   "version": "0.1.0",
   "description": "AI-powered real-time scam and phishing detection with explainable results. Works locally for complete privacy.",
 
