@@ -87,7 +87,16 @@ const PhishAIEngine = {
    */
   analyzeText(body, subject = "") {
     const result = { score: 0, flags: [] };
-    const fullText = `${subject} ${body}`.toLowerCase();
+    
+    // === PRIVACY SHIELD: Scrub data before analysis ===
+    const cleanBody = PhishGuardHelpers.anonymizeText(body);
+    const cleanSubject = PhishGuardHelpers.anonymizeText(subject);
+
+    // Debug log to prove privacy works
+    PhishGuardHelpers.log("Analyzing anonymized content:", cleanSubject);
+
+    // Combine and lowercase for analysis
+    const fullText = `${cleanSubject} ${cleanBody}`.toLowerCase();
 
     if (!fullText.trim()) return result;
 
