@@ -2,19 +2,20 @@
  * ============================================
  * AI-ENGINE.JS — Intelligence & Scoring Engine
  * Role: Intelligence Lead
- * Purpose: Analyze text content, score risk,
+
+* Purpose: Analyze text content, score risk,
  * categorize scams, generate explanations
  * ============================================
  */
 
 const PhishAIEngine = {
 
-  /**
-   * ─── MAIN ENTRY: Full analysis of email content ───
-   * @param {Object} emailData - { body, sender, displayName, urls, subject }
-   * @returns {Object} Complete scan result
-   */
-  analyze(emailData) {
+ /**
+ * ─── MAIN ENTRY: Full analysis of email content ───
+ * @param {Object} emailData - { body, sender, displayName, urls, subject }
+ * @returns {Object} Complete scan result
+ */
+analyze(emailData) {
     const scanId = PhishGuardHelpers.generateScanId();
     const startTime = performance.now();
 
@@ -22,8 +23,8 @@ const PhishAIEngine = {
 
     // Step 1: Text analysis
     const textResult = this.analyzeText(
-      emailData.body,
-      emailData.subject || ""
+        emailData.body,
+        emailData.subject || ""
     );
 
     // Step 2: URL analysis
@@ -31,24 +32,31 @@ const PhishAIEngine = {
 
     // Step 3: Sender analysis
     const senderResult = PhishScanner.analyzeSender(
-      emailData.sender,
-      emailData.displayName
+        emailData.sender,
+        emailData.displayName
     );
 
-    // Step 4: Calculate weighted score
-    const weights = SCAM_CONSTANTS.SCORE_WEIGHTS;
+    // Step 4: Calculate weighted score (rebalance weights)
+    const weights = {
+        TEXT: 0.35,
+        URL: 0.40,
+        SENDER: 0.25
+    };
     const finalScore = Math.round(
-      (textResult.score * weights.TEXT) +
-      (urlResult.score * weights.URL) +
-      (senderResult.score * weights.SENDER)
+        (textResult.score * weights.TEXT) +
+        (urlResult.score * weights.URL) +
+        (senderResult.score * weights.SENDER)
     );
 
     // Step 5: Determine category
-    const category = this._detectCategory(emailData.body);
+    const category = this._detectCategory(emailData.body, textResult);
 
     // Step 6: Generate explanation
     const explanation = this._generateExplanation(
-      textResult, urlResult, senderResult, category
+        textResult,
+        urlResult,
+        senderResult,
+        category
     );
 
     // Step 7: Build result
@@ -56,31 +64,32 @@ const PhishAIEngine = {
     const processingTime = Math.round(performance.now() - startTime);
 
     const result = {
-      scanId,
-      score: finalScore,
-      riskLevel: riskLevel.label,
-      color: riskLevel.color,
-      category: category ? category.label : "General",
-      categoryIcon: category ? category.icon : "📧",
-      explanation,
-      details: {
-        textScore: textResult.score,
-        urlScore: urlResult.score,
-        senderScore: senderResult.score,
-        textFlags: textResult.flags,
-        urlFlags: urlResult.flags,
-        senderFlags: senderResult.flags,
-        urlCount: urlResult.urlCount,
-        flaggedURLs: urlResult.flaggedURLs || []
-      },
-      processingTime,
-      timestamp: Date.now()
+        scanId,
+        score: finalScore,
+        riskLevel: riskLevel.label,
+        color: riskLevel.color,
+        category: category ? category.label : "General",
+        categoryIcon: category ? category.icon : "📧",
+        explanation,
+        details: {
+            textScore: textResult.score,
+            urlScore: urlResult.score,
+            senderScore: senderResult.score,
+            textFlags: textResult.flags,
+            urlFlags: urlResult.flags,
+            senderFlags: senderResult.flags,
+            urlCount: urlResult.urlCount,
+            flaggedURLs: urlResult.flaggedURLs || []
+        },
+        processingTime,
+        timestamp: Date.now()
     };
 
+    // ✅ Fixed logging bug (use backticks for interpolation)
     PhishGuardHelpers.log(`Analysis complete: Score ${finalScore}`, result);
 
     return result;
-  },
+},
 
   /**
    * ─── Text Content Analysis ───
@@ -333,4 +342,4 @@ if (typeof module !== 'undefined' && module.exports) {
 }
 
 // Expose to window for console testing
-window.PhishAIEngine = PhishAIEngine;
+window.PhishAIEngine = PhishAIEngine;   
