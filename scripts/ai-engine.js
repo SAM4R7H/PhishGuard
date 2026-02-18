@@ -10,12 +10,12 @@
 
 const PhishAIEngine = {
 
- /**
- * ─── MAIN ENTRY: Full analysis of email content ───
- * @param {Object} emailData - { body, sender, displayName, urls, subject }
- * @returns {Object} Complete scan result
- */
-analyze(emailData) {
+  /**
+   * ─── MAIN ENTRY: Full analysis of email content ───
+   * @param {Object} emailData - { body, sender, displayName, urls, subject }
+   * @returns {Object} Complete scan result
+   */
+  analyze(emailData) {
     const scanId = PhishGuardHelpers.generateScanId();
     const startTime = performance.now();
 
@@ -23,8 +23,8 @@ analyze(emailData) {
 
     // Step 1: Text analysis
     const textResult = this.analyzeText(
-        emailData.body,
-        emailData.subject || ""
+      emailData.body,
+      emailData.subject || ""
     );
 
     // Step 2: URL analysis
@@ -32,64 +32,77 @@ analyze(emailData) {
 
     // Step 3: Sender analysis
     const senderResult = PhishScanner.analyzeSender(
-        emailData.sender,
-        emailData.displayName
+      emailData.sender,
+      emailData.displayName
     );
 
-    // Step 4: Calculate weighted score (rebalance weights)
-    const weights = {
-        TEXT: 0.35,
-        URL: 0.40,
-        SENDER: 0.25
+    // Step 4: Calculate weighted score (rebalance weights with calibration + adaptive thresholds)
+    const calibratedText = PhishGuardHelpers.calibrateScore(textResult.score, "TEXT");
+    const calibratedURL = PhishGuardHelpers.calibrateScore(urlResult.score, "URL");
+    const calibratedSender = PhishGuardHelpers.calibrateScore(senderResult.score, "SENDER");
+
+    // Load adaptive weights (per tenant or fallback to defaults)
+    const weights = PhishGuardHelpers.getAdaptiveWeights(emailData.tenantId) || {
+      TEXT: 0.35,
+      URL: 0.40,
+      SENDER: 0.25
     };
-    const finalScore = Math.round(
-        (textResult.score * weights.TEXT) +
-        (urlResult.score * weights.URL) +
-        (senderResult.score * weights.SENDER)
-    );
+
+    const rawScore = (calibratedText * weights.TEXT) +
+                     (calibratedURL * weights.URL) +
+                     (calibratedSender * weights.SENDER);
+
+    // Normalize to 0–100 scale
+    const finalScore = Math.round(rawScore * 100);
 
     // Step 5: Determine category
     const category = this._detectCategory(emailData.body, textResult);
 
-    // Step 6: Generate explanation
+    // Step 6: Generate explanation (with structured reason codes)
     const explanation = this._generateExplanation(
-        textResult,
-        urlResult,
-        senderResult,
-        category
+      textResult,
+      urlResult,
+      senderResult,
+      category
     );
 
-    // Step 7: Build result
-    const riskLevel = PhishGuardHelpers.formatRiskResult(finalScore);
+    // Step 7: Build result (tenant-aware thresholds)
+    const riskLevel = PhishGuardHelpers.formatRiskResult(finalScore, emailData.tenantId);
     const processingTime = Math.round(performance.now() - startTime);
 
     const result = {
-        scanId,
-        score: finalScore,
-        riskLevel: riskLevel.label,
-        color: riskLevel.color,
-        category: category ? category.label : "General",
-        categoryIcon: category ? category.icon : "📧",
-        explanation,
-        details: {
-            textScore: textResult.score,
-            urlScore: urlResult.score,
-            senderScore: senderResult.score,
-            textFlags: textResult.flags,
-            urlFlags: urlResult.flags,
-            senderFlags: senderResult.flags,
-            urlCount: urlResult.urlCount,
-            flaggedURLs: urlResult.flaggedURLs || []
-        },
-        processingTime,
-        timestamp: Date.now()
+      scanId,
+      score: finalScore,
+      riskLevel: riskLevel.label,
+      color: riskLevel.color,
+      category: category ? category.label : "General",
+      categoryIcon: category ? category.icon : "📧",
+      explanation,
+      details: {
+        textScore: textResult.score,
+        urlScore: urlResult.score,
+        senderScore: senderResult.score,
+        textFlags: textResult.flags.map(f => ({ code: f.code, message: f.message })),
+        urlFlags: urlResult.flags.map(f => ({ code: f.code, message: f.message })),
+        senderFlags: senderResult.flags.map(f => ({ code: f.code, message: f.message })),
+        urlCount: urlResult.urlCount,
+        flaggedURLs: urlResult.flaggedURLs || []
+      },
+      processingTime,
+      timestamp: Date.now()
     };
 
-    // ✅ Fixed logging bug (use backticks for interpolation)
-    PhishGuardHelpers.log(`Analysis complete: Score ${finalScore}`, result);
+    // ✅ Improved logging: include component scores and flags
+    PhishGuardHelpers.log(`Analysis complete: Score ${finalScore}`, {
+      scanId,
+      textScore: textResult.score,
+      urlScore: urlResult.score,
+      senderScore: senderResult.score,
+      flags: result.details
+    });
 
     return result;
-},
+  },
 
   /**
    * ─── Text Content Analysis ───
@@ -213,12 +226,15 @@ analyze(emailData) {
 
     return result;
   },
-
 // ==============================================
-// CATEGORY DETECTION (Improved)
+// CATEGORY DETECTION (Improved & Robust)
 // ==============================================
-
-_detectCategory(text, textResult = { score: 0 }) {
+_detectCategory(
+  text,
+  textResult = { score: 0 },
+  urlResult = { flags: [], score: 0 },
+  senderResult = { flags: [], score: 0 }
+) {
     if (!text) return null;
     const lowerText = text.toLowerCase();
 
@@ -226,33 +242,65 @@ _detectCategory(text, textResult = { score: 0 }) {
     let bestMatchScore = 0;
 
     for (const [key, cat] of Object.entries(SCAM_CONSTANTS.SCAM_CATEGORIES)) {
-        // Weighted keyword matching
+        // Weighted keyword + fuzzy matching
         const matchScore = cat.keywords.reduce((sum, kw) => {
-            return lowerText.includes(kw) ? sum + (cat.weights?.[kw] || 1) : sum;
+            return PhishGuardHelpers.fuzzyMatch(lowerText, kw)
+                ? sum + (cat.weights?.[kw] || 1)
+                : sum;
         }, 0);
 
         // Tie-breaking: prefer higher severity if scores equal
-        if (matchScore > bestMatchScore ||
-           (matchScore === bestMatchScore && cat.severity > (bestCategory?.severity || 0))) {
+        if (
+            matchScore > bestMatchScore ||
+            (matchScore === bestMatchScore &&
+             cat.severity > (bestCategory?.severity || 0))
+        ) {
             bestMatchScore = matchScore;
-            bestCategory = { 
-                ...cat, 
-                matchedKeywords: cat.keywords.filter(kw => lowerText.includes(kw)) 
+            bestCategory = {
+                ...cat,
+                matchedKeywords: cat.keywords.filter(kw =>
+                    PhishGuardHelpers.fuzzyMatch(lowerText, kw)
+                ),
+                matchScore
             };
         }
     }
 
-    // Threshold logic: allow 1 keyword if overall text score is already high
-    if (bestMatchScore >= 2 || (bestMatchScore === 1 && textResult.score >= 50)) {
-        return bestCategory;
+    if (!bestCategory) return null;
+
+    // Adaptive threshold per category severity
+    const threshold = bestCategory.minMatch || 2;
+
+    // Multi-signal boost: if URL or sender flags exist, lower threshold
+    const hasExtraSignals =
+        (urlResult.flags && urlResult.flags.length > 0) ||
+        (senderResult.flags && senderResult.flags.length > 0);
+
+    const effectiveThreshold = hasExtraSignals ? threshold - 1 : threshold;
+
+    // Threshold logic: allow 1 keyword if text score is already high
+    if (
+        bestMatchScore >= effectiveThreshold ||
+        (bestMatchScore === 1 && textResult.score >= 50)
+    ) {
+        return {
+            ...bestCategory,
+            confidence: bestMatchScore / bestCategory.keywords.length,
+            signals: {
+                textScore: textResult.score,
+                urlScore: urlResult.score,
+                senderScore: senderResult.score,
+                urlFlags: urlResult.flags,
+                senderFlags: senderResult.flags
+            }
+        };
     }
 
     return null;
 },
-  // ==============================================
-// EXPLANATION GENERATOR (Improved)
+ // ==============================================
+// EXPLANATION GENERATOR (Improved & Robust)
 // ==============================================
-
 _generateExplanation(textResult, urlResult, senderResult, category) {
     const allFlags = [
       ...textResult.flags,
@@ -260,55 +308,71 @@ _generateExplanation(textResult, urlResult, senderResult, category) {
       ...senderResult.flags
     ];
 
+    // If no flags at all
     if (allFlags.length === 0) {
       return {
-        summary: "This message appears safe. No scam indicators detected.",
+        summary: "✅ SAFE: No scam indicators detected.",
         details: [],
-        educationalTip: "Always verify unexpected requests through official channels."
+        educationalTips: [
+          "Always verify unexpected requests through official channels."
+        ],
+        metadata: {
+          textScore: textResult.score,
+          urlScore: urlResult.score,
+          senderScore: senderResult.score,
+          categoryConfidence: category?.confidence || null
+        }
       };
     }
 
+    // Weighted total score
     const totalScore = Math.round(
-      (textResult.score * 0.4) + (urlResult.score * 0.4) + (senderResult.score * 0.2)
+      (textResult.score * 0.4) +
+      (urlResult.score * 0.4) +
+      (senderResult.score * 0.2)
     );
 
     // Risk level logic: require non-text signals for HIGH RISK
     const hasStrongNonTextSignals = urlResult.score > 20 || senderResult.score > 15;
+    const severityBoost = category?.severity || 0;
+    const adjustedScore = totalScore + severityBoost * 10;
+
     let summary;
-    if (totalScore >= 70 && hasStrongNonTextSignals) {
+    if (adjustedScore >= 70 && hasStrongNonTextSignals) {
       summary = `⚠️ HIGH RISK: ${category ? category.label : "Potential Scam"} Detected`;
-    } else if (totalScore >= 70) {
+    } else if (adjustedScore >= 70) {
       summary = `⚡ CAUTION: Suspicious text patterns detected, but no strong sender/URL evidence`;
-    } else if (totalScore >= 30) {
+    } else if (adjustedScore >= 30) {
       summary = `⚡ CAUTION: Some suspicious elements found`;
     } else {
       summary = `✅ LOW RISK: Minor concerns detected`;
     }
 
-    // Flag-based educational tips
+    // Flag-based educational tips (structured flag codes preferred)
     const flagTips = [];
-    if (textResult.flags.some(f => f.includes("Urgency"))) {
+    if (textResult.flags.some(f => f.code === "URGENCY")) {
       flagTips.push("Scammers often pressure you with urgency. Pause and verify before acting.");
     }
-    if (textResult.flags.some(f => f.includes("Threat"))) {
+    if (textResult.flags.some(f => f.code === "THREAT")) {
       flagTips.push("Threatening language is a scare tactic. Legitimate organizations don’t threaten arrest or fines via email.");
     }
-    if (urlResult.flags.some(f => f.includes("Suspicious"))) {
+    if (urlResult.flags.some(f => f.code === "SUSPICIOUS_URL")) {
       flagTips.push("Hover over links to check the real domain before clicking.");
     }
-    if (senderResult.flags.some(f => f.includes("Mismatch"))) {
+    if (senderResult.flags.some(f => f.code === "MISMATCH")) {
       flagTips.push("Sender address doesn’t match display name — a common impersonation trick.");
     }
 
-    const educationalTips = {
-      BANKING: "Real banks NEVER ask for passwords, PINs, or OTPs via email. Always log in directly through the official app or website.",
-      DELIVERY: "Check your actual order history on the retailer's official site. Don't click tracking links from emails.",
-      JOB: "Legitimate employers never ask for money upfront. Research the company independently before responding.",
-      GOVERNMENT: "Government agencies communicate through official mail. They never threaten immediate arrest via email.",
-      LOTTERY: "You can't win a lottery you never entered. This is always a scam.",
-      ROMANCE: "Never send money to someone you've only met online, no matter how convincing their story.",
-      TECH_SUPPORT: "Microsoft, Apple, and Google will never email you about viruses. This is a scam.",
-      CRYPTO: "No legitimate investment guarantees returns. If it sounds too good to be true, it is."
+    // Category-specific educational tips
+    const educationalTipsMap = {
+      BANKING: "Real banks NEVER ask for passwords, PINs, or OTPs via email.",
+      DELIVERY: "Check your actual order history on the retailer's official site.",
+      JOB: "Legitimate employers never ask for money upfront.",
+      GOVERNMENT: "Government agencies never threaten immediate arrest via email.",
+      LOTTERY: "You can't win a lottery you never entered.",
+      ROMANCE: "Never send money to someone you've only met online.",
+      TECH_SUPPORT: "Microsoft, Apple, and Google will never email you about viruses.",
+      CRYPTO: "No legitimate investment guarantees returns."
     };
 
     const categoryKey = category
@@ -319,36 +383,65 @@ _generateExplanation(textResult, urlResult, senderResult, category) {
     return {
       summary,
       details: [
-        ...allFlags,
-        ...(category?.matchedKeywords ? [`Category keywords: ${category.matchedKeywords.join(", ")}`] : [])
+        ...allFlags.map(f => f.message || f), // prefer structured flag messages
+        ...(category?.matchedKeywords
+          ? [`Category keywords: ${category.matchedKeywords.join(", ")}`]
+          : [])
       ],
-      educationalTip: flagTips.length > 0
-        ? flagTips.join(" ")
+      educationalTips: flagTips.length > 0
+        ? flagTips
         : categoryKey
-          ? educationalTips[categoryKey]
-          : "When in doubt, contact the organization directly using their official website or phone number — never use contact info from the suspicious message itself."
+          ? [educationalTipsMap[categoryKey]]
+          : ["When in doubt, contact the organization directly using their official website or phone number."],
+      metadata: {
+        textScore: textResult.score,
+        urlScore: urlResult.score,
+        senderScore: senderResult.score,
+        categoryConfidence: category?.confidence || null,
+        severity: category?.severity || null
+      }
     };
 },
   // ══════════════════════════════════════════
-  //  PRIVATE HELPERS
-  // ══════════════════════════════════════════
+//  PRIVATE HELPERS (Improved)
+// ══════════════════════════════════════════
 
-  _findKeywordMatches(text, keywords) {
-    return keywords.filter(keyword => text.includes(keyword.toLowerCase()));
-  },
+_findKeywordMatches(text, keywords) {
+  if (!text) return [];
+  const lowerText = text.toLowerCase();
 
-  _calculateCapsRatio(text) {
-    if (!text || text.length === 0) return 0;
-    const letters = text.replace(/[^a-zA-Z]/g, '');
-    if (letters.length === 0) return 0;
-    const caps = letters.replace(/[^A-Z]/g, '');
-    return caps.length / letters.length;
+  // Use fuzzy matching helper if available, else fallback to includes
+  return keywords.filter(keyword =>
+    PhishGuardHelpers.fuzzyMatch
+      ? PhishGuardHelpers.fuzzyMatch(lowerText, keyword.toLowerCase())
+      : lowerText.includes(keyword.toLowerCase())
+  );
+},
+
+_calculateCapsRatio(text) {
+  if (!text || text.length < 5) {
+    return { ratio: 0, totalLetters: 0, totalCaps: 0 };
   }
+
+  const letters = text.replace(/[^a-zA-Z]/g, '');
+  if (letters.length === 0) {
+    return { ratio: 0, totalLetters: 0, totalCaps: 0 };
+  }
+
+  const caps = letters.replace(/[^A-Z]/g, '');
+  const ratio = caps.length / letters.length;
+
+  return {
+    ratio,
+    totalLetters: letters.length,
+    totalCaps: caps.length
+  };
+}
 };
 
+// Universal module definition for safe export
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PhishAIEngine;
+} else if (typeof window !== 'undefined') {
+  window.PhishAIEngine = PhishAIEngine;
 }
-
-// Expose to window for console testing
-window.PhishAIEngine = PhishAIEngine;   
