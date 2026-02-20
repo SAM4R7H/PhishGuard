@@ -2,8 +2,8 @@
  * ============================================
  * AI-ENGINE.JS — Intelligence & Scoring Engine
  * Role: Intelligence Lead
-
-* Purpose: Analyze text content, score risk,
+ *
+ * Purpose: Analyze text content, score risk,
  * categorize scams, generate explanations
  * ============================================
  */
@@ -12,7 +12,7 @@ const PhishAIEngine = {
 
   /**
    * ─── MAIN ENTRY: Full analysis of email content ───
-   * @param {Object} emailData - { body, sender, displayName, urls, subject }
+   * @param {Object} emailData - { body, sender, displayName, urls, subject, tenantId }
    * @returns {Object} Complete scan result
    */
   analyze(emailData) {
@@ -24,7 +24,8 @@ const PhishAIEngine = {
     // Step 1: Text analysis
     const textResult = this.analyzeText(
       emailData.body,
-      emailData.subject || ""
+      emailData.subject || "",
+      emailData.sender ? emailData.sender.split("@")[1] : "" // extract domain
     );
 
     // Step 2: URL analysis
@@ -56,7 +57,7 @@ const PhishAIEngine = {
     const finalScore = Math.round(rawScore * 100);
 
     // Step 5: Determine category
-    const category = this._detectCategory(emailData.body, textResult);
+    const category = this._detectCategory(emailData.body, textResult, urlResult, senderResult);
 
     // Step 6: Generate explanation (with structured reason codes)
     const explanation = this._generateExplanation(
@@ -82,12 +83,13 @@ const PhishAIEngine = {
         textScore: textResult.score,
         urlScore: urlResult.score,
         senderScore: senderResult.score,
-        textFlags: textResult.flags.map(f => ({ code: f.code, message: f.message })),
-        urlFlags: urlResult.flags.map(f => ({ code: f.code, message: f.message })),
-        senderFlags: senderResult.flags.map(f => ({ code: f.code, message: f.message })),
+        textFlags: textResult.flags,
+        urlFlags: urlResult.flags,
+        senderFlags: senderResult.flags,
         urlCount: urlResult.urlCount,
         flaggedURLs: urlResult.flaggedURLs || []
       },
+      confidence: textResult.confidence,
       processingTime,
       timestamp: Date.now()
     };
@@ -105,127 +107,113 @@ const PhishAIEngine = {
   },
 
   /**
-   * ─── Text Content Analysis ───
+   * ─── Text Content Analysis (Improved) ───
    */
-  analyzeText(body, subject = "") {
-    const result = { score: 0, flags: [] };
-    
+  analyzeText(body, subject = "", senderDomain = "") {
+    const result = { score: 0, flags: [], confidence: 0 };
+
     // === PRIVACY SHIELD: Scrub data before analysis ===
     const cleanBody = PhishGuardHelpers.anonymizeText(body);
     const cleanSubject = PhishGuardHelpers.anonymizeText(subject);
 
-    // Debug log to prove privacy works
     PhishGuardHelpers.log("Analyzing anonymized content:", cleanSubject);
 
-    // Combine and lowercase for analysis
+    // Combine subject + body, lowercase for keyword matching
     const fullText = `${cleanSubject} ${cleanBody}`.toLowerCase();
-
     if (!fullText.trim()) return result;
 
-    // Check 1: Urgency keywords
-    const urgencyMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.URGENCY_KEYWORDS
-    );
+    // -------------------------------
+    // 1. Urgency keywords
+    // -------------------------------
+    const urgencyMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.URGENCY_KEYWORDS);
     if (urgencyMatches.length > 0) {
-      const points = Math.min(urgencyMatches.length * 12, 30);
-      result.score += points;
-      result.flags.push(
-        `Urgency tactics detected: "${urgencyMatches.slice(0, 3).join('", "')}"`
-      );
+      result.score += Math.min(urgencyMatches.length * 12, 30);
+      result.flags.push({ code: "URGENCY", message: `Urgency tactics: "${urgencyMatches.join(", ")}"` });
     }
 
-    // Check 2: Threat keywords
-    const threatMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.THREAT_KEYWORDS
-    );
+    // 2. Threat keywords
+    const threatMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.THREAT_KEYWORDS);
     if (threatMatches.length > 0) {
-      const points = Math.min(threatMatches.length * 15, 30);
-      result.score += points;
-      result.flags.push(
-        `Threatening language: "${threatMatches.slice(0, 3).join('", "')}"`
-      );
+      result.score += Math.min(threatMatches.length * 15, 30);
+      result.flags.push({ code: "THREAT", message: `Threatening language: "${threatMatches.join(", ")}"` });
     }
 
-    // Check 3: Financial bait
-    const financialMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.FINANCIAL_KEYWORDS
-    );
+    // 3. Financial bait
+    const financialMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.FINANCIAL_KEYWORDS);
     if (financialMatches.length > 0) {
-      const points = Math.min(financialMatches.length * 10, 27);
-      result.score += points;
-      result.flags.push(
-        `Financial bait detected: "${financialMatches.slice(0, 3).join('", "')}"`
-      );
+      result.score += Math.min(financialMatches.length * 10, 27);
+      result.flags.push({ code: "FINANCIAL", message: `Financial bait: "${financialMatches.join(", ")}"` });
     }
 
-    // Check 4: Impersonation patterns
-    const impersonationMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.IMPERSONATION_KEYWORDS
-    );
+    // 4. Impersonation patterns
+    const impersonationMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.IMPERSONATION_KEYWORDS);
     if (impersonationMatches.length >= 2) {
       result.score += 15;
-      result.flags.push("Uses generic impersonation language (e.g., 'Dear Customer')");
+      result.flags.push({ code: "IMPERSONATION", message: "Generic impersonation language (e.g., 'Dear Customer')" });
     }
 
-    // Check 5: Action requests
-    const actionMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.ACTION_KEYWORDS
-    );
+    // 5. Action requests
+    const actionMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.ACTION_KEYWORDS);
     if (actionMatches.length > 0) {
-      const points = Math.min(actionMatches.length * 8, 25);
-      result.score += points;
-      result.flags.push(
-        `Pushes you to act: "${actionMatches.slice(0, 2).join('", "')}"`
-      );
+      result.score += Math.min(actionMatches.length * 8, 25);
+      result.flags.push({ code: "ACTION", message: `Pushes you to act: "${actionMatches.join(", ")}"` });
     }
 
-    // Check 6: Hinglish/Indian scam patterns
-    const hinglishMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.HINGLISH_KEYWORDS
-    );
+    // 6. Regional scam patterns (Hinglish)
+    const hinglishMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.HINGLISH_KEYWORDS);
     if (hinglishMatches.length > 0) {
       result.score += Math.min(hinglishMatches.length * 10, 20);
-      result.flags.push(
-        `Regional scam pattern detected: "${hinglishMatches.slice(0, 2).join('", "')}"`
-      );
+      result.flags.push({ code: "HINGLISH", message: `Regional scam pattern: "${hinglishMatches.join(", ")}"` });
     }
 
-    // Check 7: Grammar errors
-    const grammarMatches = this._findKeywordMatches(
-      fullText,
-      SCAM_CONSTANTS.GRAMMAR_INDICATORS
-    );
+    // 7. Grammar errors
+    const grammarMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.GRAMMAR_INDICATORS);
     if (grammarMatches.length > 0) {
       result.score += Math.min(grammarMatches.length * 8, 10);
-      result.flags.push("Contains common grammar errors found in scam emails");
+      result.flags.push({ code: "GRAMMAR", message: "Contains grammar errors common in scam emails" });
     }
 
-    // Check 8: Excessive capitalization
-    const capsRatio = this._calculateCapsRatio(body);
-    if (capsRatio > 0.3 && body.length > 50) {
+    // 8. Excessive capitalization
+    const capsInfo = this._calculateCapsRatio(body);
+    if (capsInfo.ratio > 0.3 && body.length > 50) {
       result.score += 10;
-      result.flags.push("Excessive use of CAPITAL LETTERS (shouting tactic)");
+      result.flags.push({ code: "CAPS", message: "Excessive use of CAPITAL LETTERS (shouting tactic)" });
     }
 
-    // Check 9: Excessive exclamation/question marks
+    // 9. Excessive punctuation
     const exclamationCount = (body.match(/!{2,}/g) || []).length;
     const questionCount = (body.match(/\?{2,}/g) || []).length;
     if (exclamationCount + questionCount >= 3) {
       result.score += 8;
-      result.flags.push("Excessive punctuation (!! or ??) — common in scams");
+      result.flags.push({ code: "PUNCTUATION", message: "Excessive punctuation (!! or ??) — common in scams" });
     }
 
-    // Cap score
+    // 10. Domain/Text mismatch (NEW)
+    const brandMatches = this._findKeywordMatches(fullText, SCAM_CONSTANTS.BRAND_KEYWORDS);
+    if (brandMatches.length > 0 && senderDomain) {
+      const mismatch = brandMatches.some(brand => !senderDomain.includes(brand.toLowerCase()));
+      if (mismatch) {
+        result.score += 20;
+        result.flags.push({ code: "DOMAIN_MISMATCH", message: `Mentions "${brandMatches.join(", ")}" but sender domain is ${senderDomain}` });
+      }
+    }
+
+    // Cap score at 100
     result.score = Math.min(result.score, 100);
 
+    // Confidence = ratio of triggered checks to total checks
+    const totalChecks = 10;
+    const triggeredChecks = result.flags.length;
+    result.confidence = triggeredChecks / totalChecks;
+
     return result;
-  },
+  }
+};
+
+// Export for Node.js or browser
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = PhishAIEngine;
+} else if (typeof window !== 'undefined') 
 // ==============================================
 // CATEGORY DETECTION (Improved & Robust)
 // ==============================================
@@ -234,7 +222,7 @@ _detectCategory(
   textResult = { score: 0 },
   urlResult = { flags: [], score: 0 },
   senderResult = { flags: [], score: 0 }
-) {
+) 
     if (!text) return null;
     const lowerText = text.toLowerCase();
 
@@ -297,11 +285,11 @@ _detectCategory(
     }
 
     return null;
-},
+
  // ==============================================
 // EXPLANATION GENERATOR (Improved & Robust)
 // ==============================================
-_generateExplanation(textResult, urlResult, senderResult, category) {
+_generateExplanation(textResult, urlResult, senderResult, category); {
     const allFlags = [
       ...textResult.flags,
       ...urlResult.flags,
@@ -401,12 +389,12 @@ _generateExplanation(textResult, urlResult, senderResult, category) {
         severity: category?.severity || null
       }
     };
-},
+}
   // ══════════════════════════════════════════
 //  PRIVATE HELPERS (Improved)
 // ══════════════════════════════════════════
 
-_findKeywordMatches(text, keywords) {
+_findKeywordMatches(text, keywords); {
   if (!text) return [];
   const lowerText = text.toLowerCase();
 
@@ -416,9 +404,9 @@ _findKeywordMatches(text, keywords) {
       ? PhishGuardHelpers.fuzzyMatch(lowerText, keyword.toLowerCase())
       : lowerText.includes(keyword.toLowerCase())
   );
-},
+}
 
-_calculateCapsRatio(text) {
+_calculateCapsRatio(text); {
   if (!text || text.length < 5) {
     return { ratio: 0, totalLetters: 0, totalCaps: 0 };
   }
@@ -437,7 +425,7 @@ _calculateCapsRatio(text) {
     totalCaps: caps.length
   };
 }
-};
+
 
 // Universal module definition for safe export
 if (typeof module !== 'undefined' && module.exports) {
