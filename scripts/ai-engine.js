@@ -7,7 +7,32 @@
  * categorize scams, generate explanations
  * ============================================
  */
+let tf;
+try {
+  tf = require('@tensorflow/tfjs-node');
+  if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("✅ Using @tensorflow/tfjs-node");
+} catch (err) {
+  tf = require('@tensorflow/tfjs');
+  if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("⚠️ Falling back to @tensorflow/tfjs");
+}
 
+const path = require('path');
+
+async function loadPhishingModel() {
+  try {
+    if (tf && tf.node) {
+      const modelUrl = 'file://' + path.join(__dirname, '..', 'Models', 'phishingmodel', 'model.json');
+      PhishAIEngine.phishingModel = await tf.loadLayersModel(modelUrl);
+      if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("Phishing model loaded successfully");
+    } else {
+      if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("Skipping model load: @tensorflow/tfjs-node not present (file:// unsupported in pure JS backend)");
+      PhishAIEngine.phishingModel = null;
+    }
+  } catch (err) {
+    if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log('Failed to load phishing model:', err);
+    PhishAIEngine.phishingModel = null;
+  }
+}
 const PhishAIEngine = {
 
   /**
@@ -15,14 +40,14 @@ const PhishAIEngine = {
    * @param {Object} emailData - { body, sender, displayName, urls, subject, tenantId }
    * @returns {Object} Complete scan result
    */
-  analyze(emailData) {
+  async analyze(emailData) {
     const scanId = PhishGuardHelpers.generateScanId();
     const startTime = performance.now();
 
     PhishGuardHelpers.log("Starting analysis", scanId);
 
     // Step 1: Text analysis
-    const textResult = this.analyzeText(
+    const textResult = await this.analyzeText(
       emailData.body,
       emailData.subject || "",
       emailData.sender ? emailData.sender.split("@")[1] : "" // extract domain
@@ -38,9 +63,10 @@ const PhishAIEngine = {
     );
 
     // Step 4: Calculate weighted score (rebalance weights with calibration + adaptive thresholds)
-    const calibratedText = PhishGuardHelpers.calibrateScore(textResult.score, "TEXT");
-    const calibratedURL = PhishGuardHelpers.calibrateScore(urlResult.score, "URL");
-    const calibratedSender = PhishGuardHelpers.calibrateScore(senderResult.score, "SENDER");
+    // Component scores are 0-100; normalize to 0-1 before calibration/weighting
+    const calibratedText = PhishGuardHelpers.calibrateScore((textResult.score || 0) / 100, "TEXT");
+    const calibratedURL = PhishGuardHelpers.calibrateScore((urlResult.score || 0) / 100, "URL");
+    const calibratedSender = PhishGuardHelpers.calibrateScore((senderResult.score || 0) / 100, "SENDER");
 
     // Load adaptive weights (per tenant or fallback to defaults)
     const weights = PhishGuardHelpers.getAdaptiveWeights(emailData.tenantId) || {
@@ -109,7 +135,7 @@ const PhishAIEngine = {
   /**
    * ─── Text Content Analysis (Improved) ───
    */
-  analyzeText(body, subject = "", senderDomain = "") {
+ async analyzeText(body, subject = "", senderDomain = "") {
     const result = { score: 0, flags: [], confidence: 0 };
 
     // === PRIVACY SHIELD: Scrub data before analysis ===
@@ -121,6 +147,16 @@ const PhishAIEngine = {
     // Combine subject + body, lowercase for keyword matching
     const fullText = `${cleanSubject} ${cleanBody}`.toLowerCase();
     if (!fullText.trim()) return result;
+    // After fullText is prepared
+    const nlpScore = await this._nlpPhishingScore(fullText);
+
+    if (nlpScore > 0.6) { // threshold for phishing
+      result.score += Math.round(nlpScore * 40); // add weighted points
+      result.flags.push({
+        code: "NLP_MODEL",
+        message: `AI model flagged this as phishing with ${Math.round(nlpScore*100)}% confidence`
+      });
+    }
 
     // -------------------------------
     // 1. Urgency keywords
@@ -207,22 +243,24 @@ const PhishAIEngine = {
     result.confidence = triggeredChecks / totalChecks;
 
     return result;
-  }
-};
+  },
 
-// Export for Node.js or browser
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = PhishAIEngine;
-} else if (typeof window !== 'undefined') 
-// ==============================================
-// CATEGORY DETECTION (Improved & Robust)
-// ==============================================
-_detectCategory(
-  text,
-  textResult = { score: 0 },
-  urlResult = { flags: [], score: 0 },
-  senderResult = { flags: [], score: 0 }
-) 
+  // ─── NLP Model Inference (safe stub) ───
+  async _nlpPhishingScore(text) {
+    try {
+      if (!this.phishingModel) return 0;
+      // Tokenizer not available here; skip model inference.
+      PhishGuardHelpers.log('Phishing model loaded but tokenizer missing; skipping model inference');
+      return 0;
+    } catch (e) {
+      return 0;
+    }
+  },
+
+  // ==============================================
+  // CATEGORY DETECTION (Improved & Robust)
+  // ==============================================
+  _detectCategory(text, textResult = { score: 0 }, urlResult = { flags: [], score: 0 }, senderResult = { flags: [], score: 0 }) {
     if (!text) return null;
     const lowerText = text.toLowerCase();
 
@@ -230,98 +268,68 @@ _detectCategory(
     let bestMatchScore = 0;
 
     for (const [key, cat] of Object.entries(SCAM_CONSTANTS.SCAM_CATEGORIES)) {
-        // Weighted keyword + fuzzy matching
-        const matchScore = cat.keywords.reduce((sum, kw) => {
-            return PhishGuardHelpers.fuzzyMatch(lowerText, kw)
-                ? sum + (cat.weights?.[kw] || 1)
-                : sum;
-        }, 0);
+      const matchScore = cat.keywords.reduce((sum, kw) => {
+        const matched = PhishGuardHelpers.fuzzyMatch ? PhishGuardHelpers.fuzzyMatch(lowerText, kw) : lowerText.includes(kw);
+        return matched ? sum + (cat.weights?.[kw] || 1) : sum;
+      }, 0);
 
-        // Tie-breaking: prefer higher severity if scores equal
-        if (
-            matchScore > bestMatchScore ||
-            (matchScore === bestMatchScore &&
-             cat.severity > (bestCategory?.severity || 0))
-        ) {
-            bestMatchScore = matchScore;
-            bestCategory = {
-                ...cat,
-                matchedKeywords: cat.keywords.filter(kw =>
-                    PhishGuardHelpers.fuzzyMatch(lowerText, kw)
-                ),
-                matchScore
-            };
-        }
+      if (
+        matchScore > bestMatchScore ||
+        (matchScore === bestMatchScore && (cat.severity || 0) > (bestCategory?.severity || 0))
+      ) {
+        bestMatchScore = matchScore;
+        bestCategory = {
+          ...cat,
+          matchedKeywords: cat.keywords.filter(kw => PhishGuardHelpers.fuzzyMatch ? PhishGuardHelpers.fuzzyMatch(lowerText, kw) : lowerText.includes(kw)),
+          matchScore
+        };
+      }
     }
 
     if (!bestCategory) return null;
 
-    // Adaptive threshold per category severity
     const threshold = bestCategory.minMatch || 2;
-
-    // Multi-signal boost: if URL or sender flags exist, lower threshold
-    const hasExtraSignals =
-        (urlResult.flags && urlResult.flags.length > 0) ||
-        (senderResult.flags && senderResult.flags.length > 0);
-
+    const hasExtraSignals = (urlResult.flags && urlResult.flags.length > 0) || (senderResult.flags && senderResult.flags.length > 0);
     const effectiveThreshold = hasExtraSignals ? threshold - 1 : threshold;
 
-    // Threshold logic: allow 1 keyword if text score is already high
-    if (
-        bestMatchScore >= effectiveThreshold ||
-        (bestMatchScore === 1 && textResult.score >= 50)
-    ) {
-        return {
-            ...bestCategory,
-            confidence: bestMatchScore / bestCategory.keywords.length,
-            signals: {
-                textScore: textResult.score,
-                urlScore: urlResult.score,
-                senderScore: senderResult.score,
-                urlFlags: urlResult.flags,
-                senderFlags: senderResult.flags
-            }
-        };
-    }
-
-    return null;
-
- // ==============================================
-// EXPLANATION GENERATOR (Improved & Robust)
-// ==============================================
-_generateExplanation(textResult, urlResult, senderResult, category); {
-    const allFlags = [
-      ...textResult.flags,
-      ...urlResult.flags,
-      ...senderResult.flags
-    ];
-
-    // If no flags at all
-    if (allFlags.length === 0) {
+    if (bestMatchScore >= effectiveThreshold || (bestMatchScore === 1 && textResult.score >= 50)) {
       return {
-        summary: "✅ SAFE: No scam indicators detected.",
-        details: [],
-        educationalTips: [
-          "Always verify unexpected requests through official channels."
-        ],
-        metadata: {
+        ...bestCategory,
+        confidence: bestMatchScore / bestCategory.keywords.length,
+        signals: {
           textScore: textResult.score,
           urlScore: urlResult.score,
           senderScore: senderResult.score,
-          categoryConfidence: category?.confidence || null
+          urlFlags: urlResult.flags,
+          senderFlags: senderResult.flags
         }
       };
     }
 
-    // Weighted total score
-    const totalScore = Math.round(
-      (textResult.score * 0.4) +
-      (urlResult.score * 0.4) +
-      (senderResult.score * 0.2)
-    );
+    return null;
+  },
 
-    // Risk level logic: require non-text signals for HIGH RISK
-    const hasStrongNonTextSignals = urlResult.score > 20 || senderResult.score > 15;
+  // ==============================================
+  // EXPLANATION GENERATOR (Improved & Robust)
+  // ==============================================
+  _generateExplanation(textResult, urlResult, senderResult, category) {
+    const allFlags = [
+      ...(textResult.flags || []),
+      ...(urlResult.flags || []),
+      ...(senderResult.flags || [])
+    ];
+
+    if (allFlags.length === 0) {
+      return {
+        summary: "✅ SAFE: No scam indicators detected.",
+        details: [],
+        educationalTips: ["Always verify unexpected requests through official channels."],
+        metadata: { textScore: textResult.score, urlScore: urlResult.score, senderScore: senderResult.score, categoryConfidence: category?.confidence || null }
+      };
+    }
+
+    const totalScore = Math.round((textResult.score * 0.4) + (urlResult.score * 0.4) + (senderResult.score * 0.2));
+    const hasStrongNonTextSignals = (urlResult.score || 0) > 20 || (senderResult.score || 0) > 15;
     const severityBoost = category?.severity || 0;
     const adjustedScore = totalScore + severityBoost * 10;
 
@@ -336,22 +344,12 @@ _generateExplanation(textResult, urlResult, senderResult, category); {
       summary = `✅ LOW RISK: Minor concerns detected`;
     }
 
-    // Flag-based educational tips (structured flag codes preferred)
     const flagTips = [];
-    if (textResult.flags.some(f => f.code === "URGENCY")) {
-      flagTips.push("Scammers often pressure you with urgency. Pause and verify before acting.");
-    }
-    if (textResult.flags.some(f => f.code === "THREAT")) {
-      flagTips.push("Threatening language is a scare tactic. Legitimate organizations don’t threaten arrest or fines via email.");
-    }
-    if (urlResult.flags.some(f => f.code === "SUSPICIOUS_URL")) {
-      flagTips.push("Hover over links to check the real domain before clicking.");
-    }
-    if (senderResult.flags.some(f => f.code === "MISMATCH")) {
-      flagTips.push("Sender address doesn’t match display name — a common impersonation trick.");
-    }
+    if ((textResult.flags || []).some(f => f.code === "URGENCY")) flagTips.push("Scammers often pressure you with urgency. Pause and verify before acting.");
+    if ((textResult.flags || []).some(f => f.code === "THREAT")) flagTips.push("Threatening language is a scare tactic. Legitimate organizations don’t threaten arrest or fines via email.");
+    if ((urlResult.flags || []).some(f => f.code === "SUSPICIOUS_URL")) flagTips.push("Hover over links to check the real domain before clicking.");
+    if ((senderResult.flags || []).some(f => f.code === "MISMATCH")) flagTips.push("Sender address doesn’t match display name — a common impersonation trick.");
 
-    // Category-specific educational tips
     const educationalTipsMap = {
       BANKING: "Real banks NEVER ask for passwords, PINs, or OTPs via email.",
       DELIVERY: "Check your actual order history on the retailer's official site.",
@@ -363,73 +361,47 @@ _generateExplanation(textResult, urlResult, senderResult, category); {
       CRYPTO: "No legitimate investment guarantees returns."
     };
 
-    const categoryKey = category
-      ? Object.entries(SCAM_CONSTANTS.SCAM_CATEGORIES)
-          .find(([k, v]) => v.label === category.label)?.[0]
-      : null;
+    const categoryKey = category ? Object.entries(SCAM_CONSTANTS.SCAM_CATEGORIES).find(([k, v]) => v.label === category.label)?.[0] : null;
 
     return {
       summary,
       details: [
-        ...allFlags.map(f => f.message || f), // prefer structured flag messages
-        ...(category?.matchedKeywords
-          ? [`Category keywords: ${category.matchedKeywords.join(", ")}`]
-          : [])
+        ...allFlags.map(f => f.message || f),
+        ...(category?.matchedKeywords ? [`Category keywords: ${category.matchedKeywords.join(', ')}`] : [])
       ],
-      educationalTips: flagTips.length > 0
-        ? flagTips
-        : categoryKey
-          ? [educationalTipsMap[categoryKey]]
-          : ["When in doubt, contact the organization directly using their official website or phone number."],
-      metadata: {
-        textScore: textResult.score,
-        urlScore: urlResult.score,
-        senderScore: senderResult.score,
-        categoryConfidence: category?.confidence || null,
-        severity: category?.severity || null
-      }
+      educationalTips: flagTips.length > 0 ? flagTips : categoryKey ? [educationalTipsMap[categoryKey]] : ["When in doubt, contact the organization directly using their official website or phone number."],
+      metadata: { textScore: textResult.score, urlScore: urlResult.score, senderScore: senderResult.score, categoryConfidence: category?.confidence || null, severity: category?.severity || null }
     };
-}
-  // ══════════════════════════════════════════
-//  PRIVATE HELPERS (Improved)
-// ══════════════════════════════════════════
+  },
 
-_findKeywordMatches(text, keywords); {
-  if (!text) return [];
-  const lowerText = text.toLowerCase();
+  // PRIVATE HELPERS
+  _findKeywordMatches(text, keywords) {
+    if (!text) return [];
+    const lowerText = text.toLowerCase();
+    return (keywords || []).filter(keyword => PhishGuardHelpers.fuzzyMatch ? PhishGuardHelpers.fuzzyMatch(lowerText, keyword.toLowerCase()) : lowerText.includes(keyword.toLowerCase()));
+  },
 
-  // Use fuzzy matching helper if available, else fallback to includes
-  return keywords.filter(keyword =>
-    PhishGuardHelpers.fuzzyMatch
-      ? PhishGuardHelpers.fuzzyMatch(lowerText, keyword.toLowerCase())
-      : lowerText.includes(keyword.toLowerCase())
-  );
-}
-
-_calculateCapsRatio(text); {
-  if (!text || text.length < 5) {
-    return { ratio: 0, totalLetters: 0, totalCaps: 0 };
+  _calculateCapsRatio(text) {
+    if (!text || text.length < 5) return { ratio: 0, totalLetters: 0, totalCaps: 0 };
+    const letters = text.replace(/[^a-zA-Z]/g, '');
+    if (letters.length === 0) return { ratio: 0, totalLetters: 0, totalCaps: 0 };
+    const caps = letters.replace(/[^A-Z]/g, '');
+    const ratio = caps.length / letters.length;
+    return { ratio, totalLetters: letters.length, totalCaps: caps.length };
   }
+};
 
-  const letters = text.replace(/[^a-zA-Z]/g, '');
-  if (letters.length === 0) {
-    return { ratio: 0, totalLetters: 0, totalCaps: 0 };
-  }
-
-  const caps = letters.replace(/[^A-Z]/g, '');
-  const ratio = caps.length / letters.length;
-
-  return {
-    ratio,
-    totalLetters: letters.length,
-    totalCaps: caps.length
-  };
-}
-
+// Expose loader so callers can await model load: await PhishAIEngine.loadPhishingModel()
+PhishAIEngine.loadPhishingModel = loadPhishingModel;
 
 // Universal module definition for safe export
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PhishAIEngine;
 } else if (typeof window !== 'undefined') {
   window.PhishAIEngine = PhishAIEngine;
+}
+
+// Try to load model in Node but ignore errors
+if (typeof window === 'undefined') {
+  loadPhishingModel().catch(() => {});
 }
