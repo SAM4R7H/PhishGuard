@@ -98,8 +98,11 @@
     // Inject the warning banner
     injectWarningBanner(result);
 
-    // Save result
-    PhishGuardHelpers.saveScanResult(result);
+    // Send result to background for storage
+    chrome.runtime.sendMessage({
+      type: "SAVE_RESULT",
+      payload: result
+    });
 
     // Notify background script (safely)
     try {

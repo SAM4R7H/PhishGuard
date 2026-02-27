@@ -50,6 +50,30 @@ const PhishGuardHelpers = {
   },
 
   /**
+   * PRIVACY SHIELD: Redact PII (Personal Identifiable Information)
+   * Replaces emails, phones, and names with generic placeholders.
+   */
+  anonymizeText(text) {
+    if (!text) return "";
+
+    return text
+      // 1. Redact Email Addresses
+      .replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[REDACTED_EMAIL]')
+      
+      // 2. Redact Phone Numbers (Generic 10-digit or international formats)
+      // Matches: +91 9876543210, 987-654-3210, (123) 456-7890
+      .replace(/(?:\+?\d{1,3}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}/g, '[REDACTED_PHONE]')
+      
+      // 3. Redact Credit Card Numbers (Groups of 4 digits)
+      // Matches: 1234 5678 1234 5678
+      .replace(/\b(?:\d{4}[ -]?){3}\d{4}\b/g, '[REDACTED_CARD]')
+      
+      // 4. Redact potential names after greetings
+      // Matches: "Dear Samarth," -> "Dear [REDACTED_NAME],"
+      .replace(/(Hi|Hello|Dear)\s+([A-Z][a-z]+)/g, '$1 [REDACTED_NAME]');
+  },
+
+  /**
    * Calculate Levenshtein distance between two strings
    * Used for typosquatting detection
    */
@@ -129,6 +153,7 @@ const PhishGuardHelpers = {
   async saveScanResult(result) {
     try {
       const data = await chrome.storage.local.get(['scanHistory', 'stats']);
+      
       const history = data.scanHistory || [];
       const stats = data.stats || {
         totalScans: 0,
@@ -136,6 +161,11 @@ const PhishGuardHelpers = {
         safeEmails: 0,
         categoryCounts: {}
       };
+
+      // === FIX: Ensure categoryCounts exists (Self-Healing) ===
+      if (!stats.categoryCounts) {
+        stats.categoryCounts = {};
+      }
 
       // Add to history (keep last 100)
       history.unshift({
@@ -146,19 +176,23 @@ const PhishGuardHelpers = {
 
       // Update stats
       stats.totalScans++;
+      
       if (result.score >= 70) {
         stats.scamsDetected++;
       } else {
         stats.safeEmails++;
       }
+      
       if (result.category) {
         stats.categoryCounts[result.category] =
           (stats.categoryCounts[result.category] || 0) + 1;
       }
 
       await chrome.storage.local.set({ scanHistory: history, stats });
+      
     } catch (error) {
-      console.error("[PhishGuard] Error saving scan result:", error);
+      // Use console.error so it stands out, but don't break the app
+      console.error("[PhishGuard] Storage Error:", error);
     }
   }
 };
