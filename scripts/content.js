@@ -1,3 +1,59 @@
+console.log("[PhishGuard] Content script initialized");
+
+if (!window.location.hostname.includes("mail.google.com")) {
+    console.log("[PhishGuard] Not Gmail, exiting.");
+} else {
+    console.log("[PhishGuard] Gmail detected, starting observer...");
+    initializeObserver();
+}
+
+
+console.log("PhishGuard content script running - UI Architect test");
+window.addEventListener("load", function () {
+
+    if (window.location.hostname.includes("mail.google.com")) {
+
+        const banner = document.createElement("div");
+        banner.innerText = "🛡 PhishGuard is Active";
+
+        banner.style.position = "fixed";
+        banner.style.top = "0";
+        banner.style.left = "0";
+        banner.style.width = "100%";
+        banner.style.padding = "12px";
+        banner.style.backgroundColor = "green";
+        banner.style.color = "white";
+        banner.style.textAlign = "center";
+        banner.style.zIndex = "999999";
+        banner.style.fontWeight = "bold";
+
+        document.documentElement.appendChild(banner);
+    }
+
+});
+
+// Day 1 Static Banner Test
+if (window.location.hostname.includes("mail.google.com")) {
+
+    const banner = document.createElement("div");
+    banner.innerText = "🛡 PhishGuard is Active";
+
+    banner.style.position = "fixed";
+    banner.style.top = "0";
+    banner.style.left = "0";
+    banner.style.width = "100%";
+    banner.style.padding = "10px";
+    banner.style.backgroundColor = "green";
+    banner.style.color = "white";
+    banner.style.textAlign = "center";
+    banner.style.zIndex = "9999";
+    banner.style.fontWeight = "bold";
+
+    document.body.appendChild(banner);
+}
+
+
+
 /**
  * ============================================
  * CONTENT.JS — Gmail DOM Interaction
@@ -418,3 +474,52 @@
   }
 
 })();
+
+let lastEmailSignature = "";
+
+function initializeObserver() {
+    const targetNode = document.body;
+
+    const config = {
+        childList: true,
+        subtree: true
+    };
+
+    const observer = new MutationObserver(function (mutationsList) {
+        detectEmailOpen();
+    });
+
+    observer.observe(targetNode, config);
+}
+function detectEmailOpen() {
+    const emailContainer = document.querySelector("div[role='main']");
+    if (!emailContainer) return;
+
+    const emailText = emailContainer.innerText;
+    if (!emailText) return;
+
+    const currentSignature = emailText.substring(0, 200);
+
+    if (currentSignature === lastEmailSignature) return;
+
+    lastEmailSignature = currentSignature;
+
+    console.log("[PhishGuard] New email detected");
+    extractEmailData(emailContainer);
+}
+function extractEmailData(container) {
+    const textContent = container.innerText;
+
+    const links = Array.from(container.querySelectorAll("a"))
+        .map(a => a.href)
+        .filter(link => link.startsWith("http"));
+
+    const senderElement = document.querySelector("h3 span[email]");
+    const sender = senderElement ? senderElement.getAttribute("email") : "Unknown";
+
+    console.log("----- EMAIL DATA -----");
+    console.log("Sender:", sender);
+    console.log("Text Length:", textContent.length);
+    console.log("Links:", links);
+    console.log("----------------------");
+}
