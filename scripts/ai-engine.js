@@ -7,7 +7,10 @@
  * categorize scams, generate explanations
  * ============================================
  */
-let tf;
+
+// --- Integration Lead Fix: Disabled Node.js Requires ---
+
+/* let tf;
 try {
   tf = require('@tensorflow/tfjs-node');
   if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("✅ Using @tensorflow/tfjs-node");
@@ -17,10 +20,10 @@ try {
 }
 
 const path = require('path');
-
+*/
 async function loadPhishingModel() {
   try {
-    if (tf && tf.node) {
+    if (typeof tf !== 'undefined' && tf.node) {
       const modelUrl = 'file://' + path.join(__dirname, '..', 'Models', 'phishingmodel', 'model.json');
       PhishAIEngine.phishingModel = await tf.loadLayersModel(modelUrl);
       if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("Phishing model loaded successfully");
@@ -79,8 +82,8 @@ const PhishAIEngine = {
                      (calibratedURL * weights.URL) +
                      (calibratedSender * weights.SENDER);
 
-    // Normalize to 0–100 scale
-    const finalScore = Math.round(rawScore * 100);
+    // Normalize to 0–100 scale (Integration Fix: Removed the extra * 100)
+    const finalScore = Math.round(rawScore);
 
     // Step 5: Determine category
     const category = this._detectCategory(emailData.body, textResult, urlResult, senderResult);
