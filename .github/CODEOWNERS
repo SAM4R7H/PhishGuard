@@ -1,0 +1,25 @@
+# PhishGuard Team Roles & File Ownership
+
+# 1. Integration & Privacy Lead
+# Samarth owns the core configuration and the background systems.
+manifest.json                 @SAM4R7H
+scripts/background.js         @SAM4R7H
+.github/                      @SAM4R7H
+
+# 2. Intelligence Lead
+# Nikhil owns the scoring logic.
+scripts/ai-engine.js          @NikhilVaishnav-code
+
+# 3. Cyber-Analyst
+# Niharika owns the URL scanning and the threat database.
+scripts/scanner.js            @NiharikaSankhla
+utils/constants.js            @NiharikaSankhla
+
+# 4. Extension Architect
+# Nidhi owns all the User Interface and Gmail DOM injection.
+popup/                        @Nidhi05Sharma
+scripts/content.js            @Nidhi05Sharma
+
+# 5. Global Fallback
+# If someone edits a file not listed above (like README), require your review.
+*                             @SAM4R7H

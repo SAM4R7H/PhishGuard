@@ -146,6 +146,24 @@ const PhishGuardHelpers = {
       console.log(`${prefix} ${message}`);
     }
   },
+  
+  /**
+   * --- AI ENGINE INTEGRATION HELPERS ---
+   */
+  calibrateScore(score, component = "") {
+    if (isNaN(score)) return 0;
+    return Math.max(0, Math.min(100, Math.round(score * 100))); // Converts 0-1 to 0-100
+  },
+
+  getAdaptiveWeights(tenantId) {
+    // Fallback weights if no tenant is specified
+    return { TEXT: 0.35, URL: 0.40, SENDER: 0.25 };
+  },
+
+  fuzzyMatch(text, keyword) {
+    if (!text || !keyword) return false;
+    return text.includes(keyword); // Basic fallback for now
+  },
 
   /**
    * Store scan result to chrome.storage

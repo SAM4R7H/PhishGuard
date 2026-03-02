@@ -8,12 +8,8 @@
  * ============================================
  */
 
-console.log("[PhishGuard] 📄 ai-engine.js loading...");
-
-try {
-  const PhishAIEngine = {
-    phishingModel: null,
-    modelLoaded: false,
+// Phishing model loader is defined later; we keep the implementation down below.
+const PhishAIEngine = {
 
     /**
      * ─── MAIN ENTRY: Full analysis of email content ───
@@ -59,8 +55,8 @@ try {
                      (calibratedURL * weights.URL) +
                      (calibratedSender * weights.SENDER);
 
-    // Normalize to 0–100 scale
-    const finalScore = Math.round(rawScore * 100);
+    // Normalize to 0–100 scale (Integration Fix: Removed the extra * 100)
+    const finalScore = Math.round(rawScore);
 
     // Step 5: Determine category
     const category = this._detectCategory(emailData.body, textResult, urlResult, senderResult);

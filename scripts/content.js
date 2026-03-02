@@ -79,7 +79,7 @@
    * Called on every significant DOM change
    * Checks if a new email is open
    */
-  function handleDOMChange() {
+   async function handleDOMChange() {
     const emailData = extractEmailData();
 
     if (!emailData) return;
@@ -93,7 +93,7 @@
     PhishGuardHelpers.log("New email detected — scanning...");
 
     // Run AI analysis
-    const result = PhishAIEngine.analyze(emailData);
+    const result = await PhishAIEngine.analyze(emailData);
 
     // Inject the warning banner
     injectWarningBanner(result);
@@ -321,6 +321,9 @@
    * Build the inner HTML for the warning banner
    */
   function buildBannerContent(result) {
+    // 1. FAIL-SAFE: Prevent crashes if AI fails
+    if (!result || !result.explanation) return '';
+
     const { explanation, score, categoryIcon, category, details } = result;
 
     const scoreBadgeColor = score >= 70
@@ -329,18 +332,25 @@
         ? 'background:#fef3c7;color:#d97706'
         : 'background:#dcfce7;color:#16a34a';
 
+    // 2. Safely map flags
     let flagsHTML = '';
-    if (explanation.details.length > 0) {
+    if (explanation.details && Array.isArray(explanation.details) && explanation.details.length > 0) {
       flagsHTML = explanation.details
         .map(flag => `<div class="pg-flag">• ${flag}</div>`)
         .join('');
+    }
+
+    // 3. Handle Nikhil's change from string to Array for educational tips
+    let tipText = "Stay vigilant online.";
+    if (Array.isArray(explanation.educationalTips) && explanation.educationalTips.length > 0) {
+      tipText = explanation.educationalTips.join(' ');
     }
 
     return `
       <button class="pg-close" title="Dismiss">×</button>
       <div class="pg-header">
         <div>
-          <strong>${categoryIcon} PhishGuard:</strong> ${explanation.summary}
+          <strong>${categoryIcon || '📧'} PhishGuard:</strong> ${explanation.summary || 'Analysis Complete'}
           <button class="pg-toggle">Why?</button>
         </div>
         <span class="pg-score-badge" style="${scoreBadgeColor}">
@@ -353,10 +363,10 @@
         </div>
         ${flagsHTML}
         <div style="margin-top:8px;font-size:12px;opacity:0.8;">
-          📊 Breakdown — Text: ${details.textScore} | URLs: ${details.urlScore} | Sender: ${details.senderScore}
+          📊 Breakdown — Text: ${details?.textScore || 0} | URLs: ${details?.urlScore || 0} | Sender: ${details?.senderScore || 0}
         </div>
         <div class="pg-tip">
-          💡 <strong>Tip:</strong> ${explanation.educationalTip}
+          💡 <strong>Tip:</strong> ${tipText}
         </div>
       </div>
     `;
