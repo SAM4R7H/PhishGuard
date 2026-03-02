@@ -7,60 +7,40 @@
  * categorize scams, generate explanations
  * ============================================
  */
-let tf;
+
+console.log("[PhishGuard] 📄 ai-engine.js loading...");
+
 try {
-  tf = require('@tensorflow/tfjs-node');
-  if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("✅ Using @tensorflow/tfjs-node");
-} catch (err) {
-  tf = require('@tensorflow/tfjs');
-  if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("⚠️ Falling back to @tensorflow/tfjs");
-}
+  const PhishAIEngine = {
+    phishingModel: null,
+    modelLoaded: false,
 
-const path = require('path');
+    /**
+     * ─── MAIN ENTRY: Full analysis of email content ───
+     * @param {Object} emailData - { body, sender, displayName, urls, subject, tenantId }
+     * @returns {Object} Complete scan result
+     */
+    async analyze(emailData) {
+      const scanId = PhishGuardHelpers.generateScanId();
+      const startTime = performance.now();
 
-async function loadPhishingModel() {
-  try {
-    if (tf && tf.node) {
-      const modelUrl = 'file://' + path.join(__dirname, '..', 'Models', 'phishingmodel', 'model.json');
-      PhishAIEngine.phishingModel = await tf.loadLayersModel(modelUrl);
-      if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("Phishing model loaded successfully");
-    } else {
-      if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log("Skipping model load: @tensorflow/tfjs-node not present (file:// unsupported in pure JS backend)");
-      PhishAIEngine.phishingModel = null;
-    }
-  } catch (err) {
-    if (typeof PhishGuardHelpers !== 'undefined' && PhishGuardHelpers.log) PhishGuardHelpers.log('Failed to load phishing model:', err);
-    PhishAIEngine.phishingModel = null;
-  }
-}
-const PhishAIEngine = {
+      PhishGuardHelpers.log("Starting analysis", scanId);
 
-  /**
-   * ─── MAIN ENTRY: Full analysis of email content ───
-   * @param {Object} emailData - { body, sender, displayName, urls, subject, tenantId }
-   * @returns {Object} Complete scan result
-   */
-  async analyze(emailData) {
-    const scanId = PhishGuardHelpers.generateScanId();
-    const startTime = performance.now();
+      // Step 1: Text analysis
+      const textResult = await this.analyzeText(
+        emailData.body,
+        emailData.subject || "",
+        emailData.sender ? emailData.sender.split("@")[1] : "" // extract domain
+      );
 
-    PhishGuardHelpers.log("Starting analysis", scanId);
+      // Step 2: URL analysis
+      const urlResult = PhishScanner.analyzeAllURLs(emailData.urls);
 
-    // Step 1: Text analysis
-    const textResult = await this.analyzeText(
-      emailData.body,
-      emailData.subject || "",
-      emailData.sender ? emailData.sender.split("@")[1] : "" // extract domain
-    );
-
-    // Step 2: URL analysis
-    const urlResult = PhishScanner.analyzeAllURLs(emailData.urls);
-
-    // Step 3: Sender analysis
-    const senderResult = PhishScanner.analyzeSender(
-      emailData.sender,
-      emailData.displayName
-    );
+      // Step 3: Sender analysis
+      const senderResult = PhishScanner.analyzeSender(
+        emailData.sender,
+        emailData.displayName
+      );
 
     // Step 4: Calculate weighted score (rebalance weights with calibration + adaptive thresholds)
     // Component scores are 0-100; normalize to 0-1 before calibration/weighting
@@ -128,6 +108,7 @@ const PhishAIEngine = {
       senderScore: senderResult.score,
       flags: result.details
     });
+
 
     return result;
   },
@@ -391,17 +372,77 @@ const PhishAIEngine = {
   }
 };
 
-// Expose loader so callers can await model load: await PhishAIEngine.loadPhishingModel()
-PhishAIEngine.loadPhishingModel = loadPhishingModel;
-
 // Universal module definition for safe export
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = PhishAIEngine;
-} else if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined') {
   window.PhishAIEngine = PhishAIEngine;
 }
 
-// Try to load model in Node but ignore errors
-if (typeof window === 'undefined') {
-  loadPhishingModel().catch(() => {});
+// loader helper for Node and potential browser paths
+async function loadPhishingModel() {
+  // Node environment: attempt to load tfjs-node (preferred) or fallback to tfjs
+  if (typeof window === 'undefined') {
+    let tf;
+    try {
+      tf = require('@tensorflow/tfjs-node');
+    } catch (e) {
+      try {
+        tf = require('@tensorflow/tfjs');
+      } catch (e2) {
+        console.warn('[PhishGuard] TensorFlow not installed');
+        return;
+      }
+    }
+
+    const path = require('path');
+    const { pathToFileURL } = require('url');
+
+    // build a proper file:// URL with forward‑slashes so undici won't choke
+    const modelFilePath = path.join(__dirname, '..', 'Models', 'phishingmodel', 'model.json');
+    const modelUrl = pathToFileURL(modelFilePath).href;
+
+    try {
+      if (tf.node && typeof tf.node.loadLayersModel === 'function') {
+        console.log('[PhishGuard] 🧠 Loading phishing model via tf.node.loadLayersModel');
+        PhishAIEngine.phishingModel = await tf.node.loadLayersModel(modelUrl);
+      } else {
+        console.log('[PhishGuard] 🧠 Loading phishing model via tf.loadLayersModel');
+        PhishAIEngine.phishingModel = await tf.loadLayersModel(modelUrl);
+      }
+      PhishAIEngine.modelLoaded = true;
+      console.log('[PhishGuard] 📦 Phishing model loaded (node)');
+    } catch (err) {
+      // second attempt: try without file:// prefix in case the loader expects a plain path
+      console.error('[PhishGuard] ❌ Failed to load phishing model (first attempt):', err);
+      try {
+        const altPath = modelFilePath.replace(/\\/g, '/');
+        if (tf.node && typeof tf.node.loadLayersModel === 'function') {
+          PhishAIEngine.phishingModel = await tf.node.loadLayersModel(altPath);
+        } else {
+          PhishAIEngine.phishingModel = await tf.loadLayersModel(altPath);
+        }
+        PhishAIEngine.modelLoaded = true;
+        console.log('[PhishGuard] 📦 Phishing model loaded on fallback path');
+      } catch (err2) {
+        console.error('[PhishGuard] ❌ Second attempt to load phishing model also failed:', err2);
+      }
+    }
+  } else {
+    // Browser environment: skip or optionally fetch model via fetch()
+    console.log('[PhishGuard] 🌐 Browser mode – model loading disabled');
+  }
+}
+
+// expose loader so run_analysis and others can call it
+PhishAIEngine.loadPhishingModel = loadPhishingModel;
+
+// Expose for calling if needed
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = PhishAIEngine;
+}
+
+console.log("[PhishGuard] ✅ ai-engine.js loaded successfully");
+
+} catch (err) {
+  console.error("[PhishGuard] 💥 FATAL ERROR in ai-engine.js:", err);
+  console.error("[PhishGuard] Stack:", err.stack);
 }
