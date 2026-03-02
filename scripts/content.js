@@ -518,8 +518,62 @@ function extractEmailData(container) {
     const sender = senderElement ? senderElement.getAttribute("email") : "Unknown";
 
     console.log("----- EMAIL DATA -----");
+    const riskLevel = analyzeRisk(links, textContent);
+    console.log("[PhishGuard] Risk Level:", riskLevel);
+    injectRiskBanner(riskLevel);
+
     console.log("Sender:", sender);
     console.log("Text Length:", textContent.length);
     console.log("Links:", links);
     console.log("----------------------");
+}
+function analyzeRisk(links, textContent) {
+    for (let link of links) {
+        if (
+            link.includes("bit.ly") ||
+            link.includes("tinyurl") ||
+            link.includes("@") ||
+            link.length > 120
+        ) {
+            return "SUSPICIOUS";
+        }
+    }
+    return "SAFE";
+}
+function injectRiskBanner(riskLevel) {
+
+    // Remove existing banner if present
+    const existingBanner = document.getElementById("phishguard-banner");
+    if (existingBanner) {
+        existingBanner.remove();
+    }
+
+    const mainContainer = document.querySelector("div[role='main']");
+    if (!mainContainer) return;
+
+    const banner = document.createElement("div");
+    banner.id = "phishguard-banner";
+
+    banner.textContent = `PhishGuard: ${riskLevel === "SAFE" ? "Email appears safe" : "Warning: Suspicious email detected"}`;
+
+    banner.style.padding = "12px";
+    banner.style.fontSize = "14px";
+    banner.style.fontWeight = "600";
+    banner.style.textAlign = "center";
+    banner.style.borderRadius = "6px";
+    banner.style.margin = "10px";
+    banner.style.zIndex = "9999";
+    banner.style.position = "relative";
+
+    if (riskLevel === "SAFE") {
+        banner.style.backgroundColor = "#e6f4ea";
+        banner.style.color = "#137333";
+        banner.style.border = "1px solid #34a853";
+    } else {
+        banner.style.backgroundColor = "#fce8e6";
+        banner.style.color = "#c5221f";
+        banner.style.border = "1px solid #ea4335";
+    }
+
+    mainContainer.prepend(banner);
 }
