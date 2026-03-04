@@ -8,6 +8,8 @@
  * ============================================
  */
 
+// wrap in try/catch so loading errors can be diagnosed
+try {
 // Phishing model loader is defined later; we keep the implementation down below.
 const PhishAIEngine = {
 
@@ -25,7 +27,6 @@ const PhishAIEngine = {
       // Step 1: Text analysis
       const textResult = await this.analyzeText(
         emailData.body,
-        emailData.subject || "",
         emailData.sender ? emailData.sender.split("@")[1] : "" // extract domain
       );
 
@@ -342,9 +343,10 @@ const PhishAIEngine = {
 
     return {
       summary,
+      // provide detailed flag objects so UI can render explanations or tooltips
       details: [
-        ...allFlags.map(f => f.message || f),
-        ...(category?.matchedKeywords ? [`Category keywords: ${category.matchedKeywords.join(', ')}`] : [])
+        ...allFlags.map(f => (typeof f === 'object' ? f : { code: null, message: f })),
+        ...(category?.matchedKeywords ? [{ code: 'CATEGORY', message: `Category keywords: ${category.matchedKeywords.join(', ')}` }] : [])
       ],
       educationalTips: flagTips.length > 0 ? flagTips : categoryKey ? [educationalTipsMap[categoryKey]] : ["When in doubt, contact the organization directly using their official website or phone number."],
       metadata: { textScore: textResult.score, urlScore: urlResult.score, senderScore: senderResult.score, categoryConfidence: category?.confidence || null, severity: category?.severity || null }
