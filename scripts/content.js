@@ -1,39 +1,21 @@
+let detectionTimeout = null;
+let lastEmailSignature = null;
+let lastRiskLevel = null;
+
 console.log("[PhishGuard] Content script initialized");
 
 if (!window.location.hostname.includes("mail.google.com")) {
-    console.log("[PhishGuard] Not Gmail, exiting.");
+  console.log("[PhishGuard] Not Gmail, exiting.");
 } else {
-    console.log("[PhishGuard] Gmail detected, starting observer...");
-    initializeObserver();
+  console.log("[PhishGuard] Gmail detected, starting observer...");
+  initializeObserver();
 }
 
 
 console.log("PhishGuard content script running - UI Architect test");
 window.addEventListener("load", function () {
 
-    if (window.location.hostname.includes("mail.google.com")) {
-
-        const banner = document.createElement("div");
-        banner.innerText = "🛡 PhishGuard is Active";
-
-        banner.style.position = "fixed";
-        banner.style.top = "0";
-        banner.style.left = "0";
-        banner.style.width = "100%";
-        banner.style.padding = "12px";
-        banner.style.backgroundColor = "green";
-        banner.style.color = "white";
-        banner.style.textAlign = "center";
-        banner.style.zIndex = "999999";
-        banner.style.fontWeight = "bold";
-
-        document.documentElement.appendChild(banner);
-    }
-
-});
-
-// Day 1 Static Banner Test
-if (window.location.hostname.includes("mail.google.com")) {
+  if (window.location.hostname.includes("mail.google.com")) {
 
     const banner = document.createElement("div");
     banner.innerText = "🛡 PhishGuard is Active";
@@ -42,14 +24,36 @@ if (window.location.hostname.includes("mail.google.com")) {
     banner.style.top = "0";
     banner.style.left = "0";
     banner.style.width = "100%";
-    banner.style.padding = "10px";
+    banner.style.padding = "12px";
     banner.style.backgroundColor = "green";
     banner.style.color = "white";
     banner.style.textAlign = "center";
-    banner.style.zIndex = "9999";
+    banner.style.zIndex = "999999";
     banner.style.fontWeight = "bold";
 
-    document.body.appendChild(banner);
+    document.documentElement.appendChild(banner);
+  }
+
+});
+
+// Day 1 Static Banner Test
+if (window.location.hostname.includes("mail.google.com")) {
+
+  const banner = document.createElement("div");
+  banner.innerText = "🛡 PhishGuard is Active";
+
+  banner.style.position = "fixed";
+  banner.style.top = "0";
+  banner.style.left = "0";
+  banner.style.width = "100%";
+  banner.style.padding = "10px";
+  banner.style.backgroundColor = "green";
+  banner.style.color = "white";
+  banner.style.textAlign = "center";
+  banner.style.zIndex = "9999";
+  banner.style.fontWeight = "bold";
+
+  document.body.appendChild(banner);
 }
 
 
@@ -135,7 +139,7 @@ if (window.location.hostname.includes("mail.google.com")) {
    * Called on every significant DOM change
    * Checks if a new email is open
    */
-   async function handleDOMChange() {
+  async function handleDOMChange() {
     const emailData = extractEmailData();
 
     if (!emailData) return;
@@ -165,7 +169,7 @@ if (window.location.hostname.includes("mail.google.com")) {
       chrome.runtime.sendMessage({
         type: "SCAN_COMPLETE",
         payload: result
-      }).catch(() => {}); // Ignore if popup isn't open
+      }).catch(() => { }); // Ignore if popup isn't open
     } catch (e) {
       // Extension context invalidated usually
     }
@@ -475,105 +479,152 @@ if (window.location.hostname.includes("mail.google.com")) {
 
 })();
 
-let lastEmailSignature = "";
 
 function initializeObserver() {
-    const targetNode = document.body;
+  const targetNode = document.body;
 
-    const config = {
-        childList: true,
-        subtree: true
-    };
+  const config = {
+    childList: true,
+    subtree: true
+  };
 
-    const observer = new MutationObserver(function (mutationsList) {
+  const observer = new MutationObserver(() => {
+
+    console.log("Observer triggered");
+
+    if (detectionTimeout) {
+        clearTimeout(detectionTimeout);
+    }
+
+    detectionTimeout = setTimeout(() => {
+        console.log("Calling detectEmailOpen()");
         detectEmailOpen();
-    });
+    }, 700);
 
-    observer.observe(targetNode, config);
+});
+
+
+  observer.observe(targetNode, config);
 }
 function detectEmailOpen() {
-    const emailContainer = document.querySelector("div[role='main']");
-    if (!emailContainer) return;
+  const emailContainer = document.querySelector("div[role='main']");
+  if (!emailContainer) return;
 
-    const emailText = emailContainer.innerText;
-    if (!emailText) return;
+  const emailText = emailContainer.innerText;
+  if (!emailText) return;
 
-    const currentSignature = emailText.substring(0, 200);
+  const currentSignature = emailText.substring(0, 200);
 
-    if (currentSignature === lastEmailSignature) return;
+  if (currentSignature === lastEmailSignature) return;
 
-    lastEmailSignature = currentSignature;
+  lastEmailSignature = currentSignature;
 
-    console.log("[PhishGuard] New email detected");
-    extractEmailData(emailContainer);
+  console.log("[PhishGuard] New email detected");
+  extractEmailData(emailContainer);
 }
 function extractEmailData(container) {
-    const textContent = container.innerText;
+  const textContent = container.innerText;
 
-    const links = Array.from(container.querySelectorAll("a"))
-        .map(a => a.href)
-        .filter(link => link.startsWith("http"));
+  const links = Array.from(container.querySelectorAll("a"))
+    .map(a => a.href)
+    .filter(link => link.startsWith("http"));
 
-    const senderElement = document.querySelector("h3 span[email]");
-    const sender = senderElement ? senderElement.getAttribute("email") : "Unknown";
+  const senderElement = document.querySelector("h3 span[email]");
+  const sender = senderElement ? senderElement.getAttribute("email") : "Unknown";
 
-    console.log("----- EMAIL DATA -----");
-    const riskLevel = analyzeRisk(links, textContent);
-    console.log("[PhishGuard] Risk Level:", riskLevel);
-    injectRiskBanner(riskLevel);
+  console.log("----- EMAIL DATA -----");
+  const riskLevel = analyzeRisk(textContent);
 
-    console.log("Sender:", sender);
-    console.log("Text Length:", textContent.length);
-    console.log("Links:", links);
-    console.log("----------------------");
+  console.log("[PhishGuard] Risk Level:", riskLevel);
+  injectRiskBanner(riskLevel);
+
+  console.log("Sender:", sender);
+  console.log("Text Length:", textContent.length);
+  console.log("Links:", links);
+  console.log("----------------------");
 }
-function analyzeRisk(links, textContent) {
+function analyzeRisk(emailText) {
+
+    // ensure emailText is a string
+    emailText = String(emailText);
+
+    // detect links
+    const urlRegex = /https?:\/\/[^\s]+/g;
+    let links = emailText.match(urlRegex);
+
+    // no links → neutral
+    if (!links || links.length === 0) {
+        return "NEUTRAL";
+    }
+
     for (let link of links) {
+
+        // Rule 1 — shortened URLs
         if (
             link.includes("bit.ly") ||
             link.includes("tinyurl") ||
-            link.includes("@") ||
-            link.length > 120
+            link.includes("ow.ly")
         ) {
             return "SUSPICIOUS";
         }
+
+        // Rule 2 — IP based links
+        const ipRegex = /https?:\/\/\d{1,3}(\.\d{1,3}){3}/;
+        if (ipRegex.test(link)) {
+            return "SUSPICIOUS";
+        }
+
+        // Rule 3 — too many query parameters
+        const queryCount = (link.match(/&/g) || []).length;
+        if (queryCount > 5) {
+            return "SUSPICIOUS";
+        }
     }
+
     return "SAFE";
 }
+
+
 function injectRiskBanner(riskLevel) {
 
-    // Remove existing banner if present
-    const existingBanner = document.getElementById("phishguard-banner");
-    if (existingBanner) {
-        existingBanner.remove();
-    }
+  // Remove existing banner if present
+  const existingBanner = document.getElementById("phishguard-banner");
+  if (existingBanner) {
+    existingBanner.remove();
+  }
 
-    const mainContainer = document.querySelector("div[role='main']");
-    if (!mainContainer) return;
+  const mainContainer = document.querySelector("div[role='main']");
+  if (!mainContainer) return;
 
-    const banner = document.createElement("div");
-    banner.id = "phishguard-banner";
+  const banner = document.createElement("div");
+  banner.id = "phishguard-banner";
 
-    banner.textContent = `PhishGuard: ${riskLevel === "SAFE" ? "Email appears safe" : "Warning: Suspicious email detected"}`;
+  banner.style.padding = "12px";
+  banner.style.fontSize = "14px";
+  banner.style.fontWeight = "600";
+  banner.style.textAlign = "center";
+  banner.style.borderRadius = "6px";
+  banner.style.margin = "10px";
+  banner.style.zIndex = "9999";
+  banner.style.position = "relative";
 
-    banner.style.padding = "12px";
-    banner.style.fontSize = "14px";
-    banner.style.fontWeight = "600";
-    banner.style.textAlign = "center";
-    banner.style.borderRadius = "6px";
-    banner.style.margin = "10px";
-    banner.style.zIndex = "9999";
-    banner.style.position = "relative";
+  if (riskLevel === "SAFE") {
+      banner.style.backgroundColor = "green";
+      banner.style.color = "white";
+      banner.innerText = "PhishGuard: Email appears safe";
+  }
 
-    if (riskLevel === "SAFE") {
-        banner.style.backgroundColor = "#e6f4ea";
-        banner.style.color = "#137333";
-        banner.style.border = "1px solid #34a853";
-    } else {
-        banner.style.backgroundColor = "#fce8e6";
-        banner.style.color = "#c5221f";
-        banner.style.border = "1px solid #ea4335";
-    }
+  else if (riskLevel === "NEUTRAL") {
+      banner.style.backgroundColor = "#e0e0e0";
+      banner.style.color = "#333";
+      banner.innerText = "PhishGuard: No links detected";
+  }
 
-    mainContainer.prepend(banner);
+  else if (riskLevel === "SUSPICIOUS") {
+      banner.style.backgroundColor = "red";
+      banner.style.color = "white";
+      banner.innerText = "PhishGuard: Suspicious email detected";
+  }
+
+  mainContainer.prepend(banner);
 }
