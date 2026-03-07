@@ -203,7 +203,12 @@ const SCAM_CONSTANTS = {
     "facebook": ["faceb00k", "facebok", "facbook"],
     "netflix": ["netf1ix", "netfIix", "netflix"],
     "sbi":    ["sb1", "sbì"],
-    "hdfc":   ["hdf c", "hdtc"]
+    "hdfc":   ["hdf c", "hdtc"],
+    "icici": ["icic1", "icicci", "icici-secure", "icici-login"],
+"axisbank": ["ax1sbank", "axis-bank-login", "axisbnk"],
+"kotak": ["kot4k", "kotak-secure", "kotakbnk"],
+"paytm": ["paytmm", "paytm-login"],
+"phonepe": ["phonepee", "phon3pe"]
   },
 
   // ── Suspicious File Extensions ──
