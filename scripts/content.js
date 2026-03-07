@@ -481,6 +481,7 @@ if (window.location.hostname.includes("mail.google.com")) {
 
 
 function initializeObserver() {
+
   const targetNode = document.body;
 
   const config = {
@@ -488,24 +489,24 @@ function initializeObserver() {
     subtree: true
   };
 
-  const observer = new MutationObserver(() => {
+  const observer = new MutationObserver((mutations) => {
 
     console.log("Observer triggered");
 
     if (detectionTimeout) {
-        clearTimeout(detectionTimeout);
+      clearTimeout(detectionTimeout);
     }
 
     detectionTimeout = setTimeout(() => {
-        console.log("Calling detectEmailOpen()");
-        detectEmailOpen();
+      console.log("Calling detectEmailOpen()");
+      detectEmailOpen();
     }, 700);
 
-});
-
+  });
 
   observer.observe(targetNode, config);
 }
+
 function detectEmailOpen() {
   const emailContainer = document.querySelector("div[role='main']");
   if (!emailContainer) return;
@@ -523,7 +524,8 @@ function detectEmailOpen() {
   extractEmailData(emailContainer);
 }
 function extractEmailData(container) {
-  const textContent = container.innerText;
+
+  const textContent = container.innerText || "";
 
   const links = Array.from(container.querySelectorAll("a"))
     .map(a => a.href)
@@ -533,16 +535,34 @@ function extractEmailData(container) {
   const sender = senderElement ? senderElement.getAttribute("email") : "Unknown";
 
   console.log("----- EMAIL DATA -----");
-  const riskLevel = analyzeRisk(textContent);
-
-  console.log("[PhishGuard] Risk Level:", riskLevel);
-  injectRiskBanner(riskLevel);
-
   console.log("Sender:", sender);
   console.log("Text Length:", textContent.length);
   console.log("Links:", links);
+
+  const riskLevel = analyzeRisk(textContent);
+
+  console.log("[PhishGuard] Risk Level:", riskLevel);
+
+  // update Gmail banner
+  injectRiskBanner(riskLevel);
+
+  // send risk to popup
+  chrome.runtime.sendMessage({
+    type: "PHISHGUARD_RISK_UPDATE",
+    risk: riskLevel
+  });
+
+  // store risk for popup
+  
+
   console.log("----------------------");
 }
+
+
+
+
+
+
 function analyzeRisk(emailText) {
 
     // ensure emailText is a string
@@ -628,3 +648,5 @@ function injectRiskBanner(riskLevel) {
 
   mainContainer.prepend(banner);
 }
+initializeObserver();
+

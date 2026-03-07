@@ -10,6 +10,11 @@
   <div class="container">
 
     <header class="header">
+      <section class="current-risk">
+  <h3>Current Email Status</h3>
+  <div id="risk-status">Checking...</div>
+</section>
+
       <div class="logo">
         <span class="logo-icon">🛡️</span>
         <div>
@@ -42,11 +47,19 @@
       </div>
     </section>
 
-    <section class="last-scan" id="lastScanSection" style="display:none;">
-      <h3>🔍 Latest Scan</h3>
-      <div class="scan-result" id="lastScanResult">
-        </div>
-    </section>
+    <section class="last-scan" id="lastScanSection">
+  <h3>🔍 Current Email Status</h3>
+
+  <div id="risk-status">
+    Checking...
+  </div>
+  <button id="refreshBtn">Refresh Scan</button>
+
+
+  <div class="scan-result" id="lastScanResult">
+  </div>
+</section>
+
 
     <section class="categories" id="categoriesSection" style="display:none;">
       <h3>📊 Threat Categories</h3>
