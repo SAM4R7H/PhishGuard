@@ -95,7 +95,17 @@ const SCAM_CONSTANTS = {
     "income tax notice", "gst notice",
     "custom duty", "parcel roka gaya",
     "lottery jeet", "prize jeeta",
-    "crore rupees", "lakh rupees"
+    "crore rupees", "lakh rupees",
+    "otp share mat kare",
+"otp batao",
+"kyc pending",
+"bank verification",
+"upi block ho jayega",
+"reward points expire",
+"loan approval instant",
+"aadhaar suspend",
+"pan verification required",
+"parcel customs charge"
   ],
 
   // ── Scam Categories ──
@@ -148,7 +158,8 @@ const SCAM_CONSTANTS = {
     ".icu", ".buzz", ".tk", ".ml", ".ga",
     ".cf", ".gq", ".win", ".loan", ".click",
     ".link", ".work", ".date", ".racing",
-    ".download", ".stream", ".bid"
+    ".download", ".stream", ".bid",
+    ".zip", ".review", ".country", ".support", ".live", ".world"
   ],
 
   // ── Trusted Domains (Whitelist) ──
@@ -159,7 +170,15 @@ const SCAM_CONSTANTS = {
     "wellsfargo.com", "usps.com", "fedex.com",
     "ups.com", "irs.gov", "sbi.co.in",
     "hdfcbank.com", "icicibank.com", "rbi.org.in",
-    "gov.in", "india.gov.in"
+    "gov.in", "india.gov.in",
+    "axisbank.com",
+"kotak.com",
+"yesbank.in",
+"pnbindia.in",
+"bankofbaroda.in",
+"paytm.com",
+"phonepe.com"
+    
   ],
 
   // ── URL Red Flags ──
