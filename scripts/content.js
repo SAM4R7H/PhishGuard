@@ -20,21 +20,21 @@ window.addEventListener("load", function () {
     topBanner.id = "phishguard-global-status";
     topBanner.innerText = "🛡 PhishGuard is Active";
 
-    // Nidhi's Styling, adjusted to not break Gmail's header
-    topBanner.style.position = "absolute";
-    topBanner.style.top = "0";
-    topBanner.style.left = "50%";
-    topBanner.style.transform = "translateX(-50%)";
-    topBanner.style.padding = "6px 16px";
-    topBanner.style.backgroundColor = "#16a34a"; // Gmail-safe green
+    // Nidhi's Styling, upgraded by the Lead to a modern floating pill
+    topBanner.style.position = "fixed";      // Stays on screen even when scrolling
+    topBanner.style.bottom = "24px";         // Moved to the bottom
+    topBanner.style.left = "24px";           // Moved to the left
+    topBanner.style.padding = "8px 16px";
+    topBanner.style.backgroundColor = "#16a34a"; // Trustworthy green
     topBanner.style.color = "white";
     topBanner.style.textAlign = "center";
     topBanner.style.zIndex = "999999";
     topBanner.style.fontWeight = "bold";
-    topBanner.style.borderBottomLeftRadius = "8px";
-    topBanner.style.borderBottomRightRadius = "8px";
-    topBanner.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
-    topBanner.style.fontSize = "12px";
+    topBanner.style.borderRadius = "20px";   // Fully rounded pill shape
+    topBanner.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; // Nice drop shadow
+    topBanner.style.fontSize = "13px";
+    topBanner.style.fontFamily = "'Google Sans', Roboto, Arial, sans-serif";
+    topBanner.style.letterSpacing = "0.3px";
 
     document.body.appendChild(topBanner);
   }
