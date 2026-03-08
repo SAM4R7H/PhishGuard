@@ -96,6 +96,7 @@ window.addEventListener("load", function () {
 
     injectWarningBanner(result);
 
+    // LEAD RESOLUTION: Keep the safe background storage message, discard direct save.
     chrome.runtime.sendMessage({
       type: "SAVE_RESULT",
       payload: result

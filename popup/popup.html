@@ -46,6 +46,7 @@
       <h3>🔍 Latest Scan</h3>
       <div class="scan-result" id="lastScanResult">
         </div>
+      <div class="educational-tip" id="educationalTip" style="margin-top:12px;"></div>
     </section>
 
     <section class="categories" id="categoriesSection" style="display:none;">
@@ -58,6 +59,9 @@
       <button id="manualScanBtn" class="btn btn-primary">
         🔍 Scan Current Email
       </button>
+      <button id="helpBtn" class="btn btn-info">
+        💡 Security Tips
+      </button>
       <button id="clearHistoryBtn" class="btn btn-secondary">
         🗑️ Clear History
       </button>
@@ -68,6 +72,29 @@
     </footer>
   </div>
 
+  
+  <!-- educational modal -->
+  <div id="helpModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>📘 Email Safety Tips</h2>
+        <button id="modalCloseBtn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <h3>Recognizing Common Scams</h3>
+        <ul>
+          <li>⚠️ **Urgent requests:** Scammers pressure you to act fast. Pause and verify.</li>
+          <li>🔗 **Check links:** Hover to see the real URL. Look for misspellings or extra characters.</li>
+          <li>📧 **Sender address:** Make sure it matches the claimed organization.</li>
+          <li>💰 **Financial promises:** Offers that sound too good to be true usually are.</li>
+          <li>🔒 **Sensitive info:** Legitimate companies never ask for passwords via email.</li>
+        </ul>
+        <h3>Next Steps</h3>
+        <p>If you're unsure about an email, don't click anything. Use official websites or contact the organization directly.</p>
+      </div>
+    </div>
+  </div>
+  
   <script src="popup.js"></script>
 </body>
 </html>

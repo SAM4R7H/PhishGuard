@@ -243,6 +243,17 @@ body {
   color: #e2e8f0;
 }
 
+.btn-info {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+}
+
+.btn-info:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
 /* ── Footer ── */
 .footer {
   text-align: center;
@@ -254,4 +265,170 @@ body {
   font-size: 10px;
   color: #475569;
   line-height: 1.4;
+}
+
+/* ── Educational Tips & Explanations ── */
+.educational-tip {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+  border-left: 3px solid #10b981;
+  border-radius: 6px;
+  padding: 10px;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.educational-tip h4 {
+  color: #10b981;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+.educational-tip p {
+  margin: 4px 0;
+}
+
+/* ── Risk Score Visualization ── */
+.risk-gauge-container {
+  width: 100%;
+  margin: 10px 0;
+}
+
+.risk-gauge-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-bottom: 6px;
+}
+
+.risk-gauge-bar {
+  height: 8px;
+  background: #334155;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.risk-gauge-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.risk-gauge-fill.safe {
+  background: linear-gradient(90deg, #10b981, #06b6d4);
+}
+
+.risk-gauge-fill.warning {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.risk-gauge-fill.danger {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+/* ── Flag Details with Tooltips ── */
+.flag-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  margin: 6px 0;
+  background: #0f172a;
+  border-left: 2px solid #334155;
+  border-radius: 4px;
+  cursor: help;
+  transition: all 0.2s;
+}
+
+.flag-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-left-color: #3b82f6;
+}
+
+.flag-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.flag-message {
+  flex: 1;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.flag-explanation {
+  display: none;
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #334155;
+  font-style: italic;
+}
+
+.flag-item.expanded .flag-explanation {
+  display: block;
+}
+
+.flag-toggle {
+  font-size: 11px;
+  color: #3b82f6;
+  cursor: pointer;
+  margin-top: 4px;
+  text-decoration: underline;
+}
+
+/* ── Educational Modal ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-content {
+  background: #0f172a;
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 90%;
+  max-height: 80%;
+  overflow-y: auto;
+  border: 1px solid #334155;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  font-size: 16px;
+  color: #f1f5f9;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: #f1f5f9;
 }

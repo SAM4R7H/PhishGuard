@@ -17,6 +17,11 @@ const PhishAIEngine = require('./ai-engine');
     if (PhishAIEngine.loadPhishingModel) {
       console.log('[Runner] Loading phishing model...');
       await PhishAIEngine.loadPhishingModel();
+      if (!PhishAIEngine.modelLoaded || !PhishAIEngine.phishingModel) {
+        console.error('[Runner] Model failed to load; aborting analysis');
+        process.exitCode = 1;
+        return;
+      }
       console.log('[Runner] Model loaded');
     } else {
       console.log('[Runner] No explicit loader; waiting for model to appear...');
