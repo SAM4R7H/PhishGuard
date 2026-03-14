@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
 });
 
-
 // ── Load and Display Stats ──
 async function loadStats() {
   try {
@@ -23,13 +22,11 @@ async function loadStats() {
     document.getElementById('scamsDetected').textContent = stats.scamsDetected || 0;
     document.getElementById('safeEmails').textContent = stats.safeEmails || 0;
 
-    // Calculate detection rate
     if (stats.totalScans > 0) {
       const rate = Math.round((stats.scamsDetected / stats.totalScans) * 100);
       document.getElementById('accuracy').textContent = `${rate}%`;
     }
 
-    // Show categories if available
     if (stats.categoryCounts && Object.keys(stats.categoryCounts).length > 0) {
       showCategories(stats.categoryCounts);
     }
@@ -37,7 +34,6 @@ async function loadStats() {
     console.error("Error loading stats:", error);
   }
 }
-
 
 // ── Load Last Scan Result ──
 async function loadLastScan() {
@@ -49,7 +45,6 @@ async function loadLastScan() {
     const section = document.getElementById('lastScanSection');
     const resultDiv = document.getElementById('lastScanResult');
 
-    // determine color for score and gauge
     let gaugeClass = 'safe';
     if (lastScan.score >= 70) gaugeClass = 'danger';
     else if (lastScan.score >= 30) gaugeClass = 'warning';
@@ -63,7 +58,7 @@ async function loadLastScan() {
       <div class="flag-item">
         <span class="flag-icon">⚠️</span>
         <span class="flag-message">${msg}</span>
-        ${explanation ? `<div class="flag-explanation">${explanation}</div>` : ''}
+        ${explanation ? `<div class="flag-explanation" style="font-size:11px; color:#94a3b8;">${explanation}</div>` : ''}
       </div>
     `;
     }).join('');
@@ -71,14 +66,6 @@ async function loadLastScan() {
     resultDiv.innerHTML = `
       <div class="result-score" style="color: ${scoreColor}">
         ${lastScan.categoryIcon || '📧'} ${lastScan.riskLevel} — Score: ${lastScan.score}/100
-      </div>
-      <div class="risk-gauge-container">
-        <div class="risk-gauge-label">
-          <span>Risk</span><span>${lastScan.score}%</span>
-        </div>
-        <div class="risk-gauge-bar">
-          <div class="risk-gauge-fill ${gaugeClass}" style="width:${lastScan.score}%;"></div>
-        </div>
       </div>
       <div class="result-category">${lastScan.category || 'General'}</div>
       <div class="result-flags">
@@ -89,26 +76,17 @@ async function loadLastScan() {
       </div>
     `;
 
-    // show educational tip
     const tipDiv = document.getElementById('educationalTip');
     if (lastScan.explanation?.educationalTips && lastScan.explanation.educationalTips.length > 0) {
-      tipDiv.innerHTML = `<h4>💡 Tip</h4><p>${lastScan.explanation.educationalTips[0]}</p>`;
+      tipDiv.innerHTML = `💡 <strong>Tip:</strong> ${lastScan.explanation.educationalTips[0]}`;
       tipDiv.style.display = 'block';
     }
 
     section.style.display = 'block';
-
-    // allow clicking flags to show/hide details (if explanation included)
-    resultDiv.querySelectorAll('.flag-item').forEach(item => {
-      item.addEventListener('click', () => {
-        item.classList.toggle('expanded');
-      });
-    });
   } catch (error) {
     console.error("Error loading last scan:", error);
   }
 }
-
 
 // ── Show Category Breakdown ──
 function showCategories(categoryCounts) {
@@ -130,7 +108,6 @@ function showCategories(categoryCounts) {
   section.style.display = 'block';
 }
 
-
 // ── Event Listeners ──
 function setupEventListeners() {
   // Manual scan button
@@ -141,7 +118,6 @@ function setupEventListeners() {
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
       if (tab && tab.url.includes('mail.google.com')) {
         await chrome.tabs.sendMessage(tab.id, { type: "MANUAL_SCAN" });
         btn.textContent = '✅ Scan Triggered!';
@@ -167,17 +143,27 @@ function setupEventListeners() {
     document.getElementById('categoriesSection').style.display = 'none';
   });
 
-  // Help modal button
-  document.getElementById('helpBtn').addEventListener('click', () => {
-    document.getElementById('helpModal').classList.add('active');
-  });
+  // Help modal buttons
+  const helpBtn = document.getElementById('helpBtn');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  const helpModal = document.getElementById('helpModal');
+  
+  if (helpBtn && helpModal) {
+    helpBtn.addEventListener('click', () => helpModal.style.display = 'flex');
+  }
+  if (modalCloseBtn && helpModal) {
+    modalCloseBtn.addEventListener('click', () => helpModal.style.display = 'none');
+  }
 
-  document.getElementById('modalCloseBtn').addEventListener('click', () => {
-    document.getElementById('helpModal').classList.remove('active');
-  });
+  // Refresh Gmail button
+  const refreshBtn = document.getElementById("refreshBtn");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", async () => {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab) chrome.tabs.reload(tab.id);
+    });
+  }
 }
-
-
 
 // explain flag codes
 function getFlagExplanation(code) {
@@ -204,8 +190,6 @@ function sendMessage(message) {
   });
 }
 
-
-// ── Helper: Time ago ──
 function timeAgo(timestamp) {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
   if (seconds < 60) return 'Just now';

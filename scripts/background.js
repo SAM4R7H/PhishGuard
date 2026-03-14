@@ -125,3 +125,25 @@ function handleScanComplete(result, tab) {
     chrome.action.setBadgeBackgroundColor({ color: "#22c55e", tabId: tab.id });
   }
 }
+// Background message router for PhishGuard
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+  if (message.type === "PHISHGUARD_RISK_UPDATE") {
+
+    console.log("[Background] Risk received:", message.risk);
+
+    // Store latest risk level
+    chrome.storage.local.set({
+      phishguardRisk: message.risk
+    });
+
+    // Forward message to popup
+    chrome.runtime.sendMessage({
+      type: "PHISHGUARD_POPUP_UPDATE",
+      risk: message.risk
+    });
+
+  }
+
+});

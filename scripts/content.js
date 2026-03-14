@@ -21,17 +21,17 @@ window.addEventListener("load", function () {
     topBanner.innerText = "🛡 PhishGuard is Active";
 
     // Nidhi's Styling, upgraded by the Lead to a modern floating pill
-    topBanner.style.position = "fixed";      // Stays on screen even when scrolling
-    topBanner.style.bottom = "24px";         // Moved to the bottom
-    topBanner.style.left = "24px";           // Moved to the left
+    topBanner.style.position = "fixed";      
+    topBanner.style.bottom = "24px";         
+    topBanner.style.left = "24px";           
     topBanner.style.padding = "8px 16px";
-    topBanner.style.backgroundColor = "#16a34a"; // Trustworthy green
+    topBanner.style.backgroundColor = "#16a34a"; 
     topBanner.style.color = "white";
     topBanner.style.textAlign = "center";
     topBanner.style.zIndex = "999999";
     topBanner.style.fontWeight = "bold";
-    topBanner.style.borderRadius = "20px";   // Fully rounded pill shape
-    topBanner.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; // Nice drop shadow
+    topBanner.style.borderRadius = "20px";   
+    topBanner.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"; 
     topBanner.style.fontSize = "13px";
     topBanner.style.fontFamily = "'Google Sans', Roboto, Arial, sans-serif";
     topBanner.style.letterSpacing = "0.3px";
